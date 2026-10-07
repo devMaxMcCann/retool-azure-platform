@@ -37,7 +37,7 @@ variable "letsencrypt_email" {
 
 variable "node_vm_size" {
   type    = string
-  default = "Standard_D4as_v6"
+  default = "Standard_D4as_v7"
 }
 
 variable "node_min_count" {
