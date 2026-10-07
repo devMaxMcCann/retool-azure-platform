@@ -17,8 +17,8 @@ resource "azurerm_resource_group" "main" {
 }
 
 module "vnet" {
-  source  = "tryretool/self-hosted-blueprints/retool//modules/azure-vnet"
-  version = "~> 0.5"
+  # Vendored 0.5.2 + two lifecycle patches; see ../vendor/PATCHES.md.
+  source = "../vendor/azure-vnet"
 
   prefix              = var.prefix
   resource_group_name = azurerm_resource_group.main.name
