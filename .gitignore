@@ -1,0 +1,12 @@
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+# subscription id, admin CIDRs, backend config: per-operator, never committed
+*.auto.tfvars
+*.backend.hcl
+.env
+data/export/
+__pycache__/
+.DS_Store
