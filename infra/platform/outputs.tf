@@ -16,7 +16,7 @@ output "ingress_public_ip" {
 }
 
 output "aks_name" {
-  value = module.aks.outputs.name
+  value = "${var.prefix}-aks" # module.aks.outputs is wholly sensitive (kube certs)
 }
 
 output "resource_group" {
