@@ -40,11 +40,21 @@ module "aks" {
   node_max_count = var.node_max_count
 
   # API server is reachable only from admin_cidrs (the AKS equivalent of a
-  # private EKS endpoint with a CIDR allowlist).
-  api_server_authorized_ip_ranges = var.admin_cidrs
+  # private EKS endpoint with a CIDR allowlist) PLUS the cluster's own egress
+  # IP. The AKS subnet egresses through the VNet NAT gateway, not the load
+  # balancer AKS auto-allowlists, so without the NAT IP here the nodes can't
+  # reach their own API server and node provisioning fails (exit code 51).
+  api_server_authorized_ip_ranges = concat(var.admin_cidrs, ["${data.azurerm_public_ip.nat.ip_address}/32"])
 
   tags       = var.tags
   depends_on = [module.vnet]
+}
+
+# Created by the vnet module, which doesn't export it.
+data "azurerm_public_ip" "nat" {
+  name                = "${var.prefix}-nat-ip"
+  resource_group_name = azurerm_resource_group.main.name
+  depends_on          = [module.vnet]
 }
 
 module "db-main" {
