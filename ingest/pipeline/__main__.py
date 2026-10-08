@@ -16,7 +16,8 @@ from pathlib import Path
 
 from . import analytics, catalog
 from .common import Blocked, connect, ledger, log
-from .sources import bls, federal_bulk, geocode, socrata, warn
+from .sources import (bls, enforcement, federal_bulk, federal_lookups, federal_registries, geocode, irs, sec, socrata,
+                      warn)
 
 LOADERS = {
     "warn": warn.run,
@@ -30,6 +31,18 @@ LOADERS = {
     "msha_violations": federal_bulk.run_msha,
     "sba_ppp": federal_bulk.run_ppp,
     "osha_sir": federal_bulk.run_osha,
+    # Company-keyed federal sources: only rows matching a WARN filer's
+    # normalized name are written (tables.yaml row filter), so run after warn.
+    "irs_eo_bmf": irs.run_eo_bmf,
+    "sec_edgar": sec.run_edgar,
+    "sec_financials": sec.run_financials,
+    "usaspending": federal_lookups.run_usaspending,
+    "fdic_bankfind": federal_registries.run_fdic,
+    "cms_care_compare": federal_registries.run_cms,
+    "fmcsa_safer": federal_lookups.run_fmcsa,
+    "cfpb_complaints": federal_lookups.run_cfpb,
+    "ftc_cases": enforcement.run_ftc,
+    "fed_enforcement": enforcement.run_fed,
 }
 
 

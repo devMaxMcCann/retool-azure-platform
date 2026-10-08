@@ -22,7 +22,24 @@ python -m pipeline analytics     # rebuild the published layer (analytics_builde
 | MSHA violations | `msha_violations` | 3rd 06:00 | controller names never read |
 | SBA PPP > $150k | `sba_ppp` | 4th 06:00 | person business types dropped |
 | OSHA severe injuries | `osha_sir` | suspended | OSHA's CloudFront refuses non-browser clients (403, robots.txt included) |
+| IRS EO BMF | `irs_eo_bmf` | 6th 06:00 | four CSVs streamed off the socket; WARN-name matches only; no ICO/street |
+| FDIC BankFind | `fdic_bankfind` | 7th 06:00 | whole institution list (3 pages), WARN-name matches only |
+| CMS hospitals | `cms_care_compare` | 8th 06:00 | whole list at robots crawl-delay 10s, WARN-name matches only |
+| SEC EDGAR | `sec_edgar` | Tue 07:00 | bulk name index -> submissions JSON; CIK/EIN, 8-K Item 2.05, Form D; no individuals |
+| SEC XBRL financials | `sec_financials` | Tue 08:30 | annual revenue/net income/debt for matched CIKs; 2 req/s |
+| USAspending | `usaspending` | daily 07:15 | ~300 WARN filers per run; exact recipient-name matches |
+| FMCSA SAFER | `fmcsa_safer` | daily 08:15 | ~300 per run; USDOT only when one carrier matches exactly |
+| CFPB complaints | `cfpb_complaints` | daily 09:15 | ~300 per run; one count per company, no narratives |
+| FTC cases | `ftc_cases` | Wed 07:00 | 150 listing pages per run at crawl-delay 5s; single-party titles only |
+| Fed enforcement | `fed_enforcement` | Thu 07:00 | RSS, accumulates; titles naming individuals dropped |
 | analytics build | `analytics` | daily 13:00 | one transaction; Retool never sees a half build |
+
+Not ported, and why: EPA ECHO (echodata.epa.gov robots.txt is `Disallow: *`), DOJ
+Antitrust case index (justice.gov answers with an Akamai bot-verification page),
+SEC related entities (the homelab fills them by name containment), and every
+source data/tables.yaml excludes (Cook County, courts, FINRA, NFA, Form ADV, IL
+debarred, crt.sh, RDAP, layoff trackers, ProPublica) or leaves to the owner
+(NLRB, OCC).
 
 ## Rules the code enforces
 
@@ -33,6 +50,13 @@ python -m pipeline analytics     # rebuild the published layer (analytics_builde
 - **A refusal is final.** 401/403/429 marks the run `blocked` in `ingest_runs`
   and exits cleanly, so Kubernetes doesn't retry it. No other identity is tried.
 - **Matching is exact normalized name**, the homelab rule; never containment.
+  Company-keyed sources store only rows matching a WARN filer's normalized name
+  (the `demo_public_companies` row filter, applied at ingest). Case titles are
+  split into parties and each party must match exactly.
+- **Each host's robots.txt was read once** before its loader was written; the
+  result is in the loader's docstring. Crawl-delays are honoured.
+- **4xx other than 401/403/429 is not retried** (our request is wrong); the
+  geocoder caches such addresses as `invalid` and moves on.
 - Every change of a source's terms goes in `data/publication-review.md` first,
   then `pipeline/catalog.py`.
 

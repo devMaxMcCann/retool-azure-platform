@@ -76,8 +76,26 @@ locals {
     sba-ppp         = { schedule = "0 6 4 * *", mem = "1536Mi", secret = "pg-ingest", sa = "ingest", scratch = "2Gi" }
     # OSHA refuses every non-browser client (CloudFront 403, robots.txt
     # included). Suspended rather than deleted, so the decision stays visible.
-    osha-sir  = { schedule = "0 6 5 * *", mem = "512Mi", secret = "pg-ingest", sa = "ingest", scratch = "1Gi", suspend = true }
-    analytics = { schedule = "0 13 * * *", mem = "512Mi", secret = "pg-analytics", sa = "analytics" }
+    osha-sir = { schedule = "0 6 5 * *", mem = "512Mi", secret = "pg-ingest", sa = "ingest", scratch = "1Gi", suspend = true }
+    # Company-keyed federal sources. Each keeps only rows whose name matches a
+    # WARN filer exactly, so all run after warn has loaded at least once.
+    # Bulk registries: monthly, on their own days after the DOL files.
+    irs-eo-bmf       = { schedule = "0 6 6 * *", mem = "512Mi", secret = "pg-ingest", sa = "ingest" } # ~0.5 GB streamed, never on disk
+    fdic-bankfind    = { schedule = "0 6 7 * *", mem = "512Mi", secret = "pg-ingest", sa = "ingest" }
+    cms-care-compare = { schedule = "0 6 8 * *", mem = "256Mi", secret = "pg-ingest", sa = "ingest" } # crawl-delay 10s
+    # SEC: weekly; financials follows edgar, which supplies its CIK list.
+    sec-edgar      = { schedule = "0 7 * * 2", mem = "512Mi", secret = "pg-ingest", sa = "ingest" }
+    sec-financials = { schedule = "30 8 * * 2", mem = "1Gi", secret = "pg-ingest", sa = "ingest" }
+    # Per-company lookups: ~300 WARN filers per run, never-checked first, so
+    # the whole list is walked over days in small paced slices.
+    usaspending     = { schedule = "15 7 * * *", mem = "256Mi", secret = "pg-ingest", sa = "ingest" }
+    fmcsa-safer     = { schedule = "15 8 * * *", mem = "256Mi", secret = "pg-ingest", sa = "ingest" }
+    cfpb-complaints = { schedule = "15 9 * * *", mem = "256Mi", secret = "pg-ingest", sa = "ingest" }
+    # Enforcement listings: FTC walks 150 listing pages per run at its
+    # crawl-delay (a full pass is ~3 runs); the Fed feed holds ~3 months.
+    ftc-cases       = { schedule = "0 7 * * 3", mem = "256Mi", secret = "pg-ingest", sa = "ingest" }
+    fed-enforcement = { schedule = "0 7 * * 4", mem = "256Mi", secret = "pg-ingest", sa = "ingest" }
+    analytics       = { schedule = "0 13 * * *", mem = "512Mi", secret = "pg-analytics", sa = "analytics" }
   }
   ingest_image = var.ingest_image_tag == null ? null : "${azurerm_container_registry.main.login_server}/ingest:${var.ingest_image_tag}"
 }

@@ -47,7 +47,10 @@ def http_get(url: str, *, timeout: int = 60, retries: int = 4, data: bytes | Non
     """GET (or POST when `data` is given) with backoff on transient errors.
 
     Returns the open response so large files can be streamed; callers use it
-    as a context manager. 401/403/429 raise Blocked immediately.
+    as a context manager. 401/403/429 raise Blocked immediately. Any other
+    4xx is raised immediately too, without retrying: it means OUR request is
+    wrong (a 400 for a bad parameter, a 404 for a file not published yet),
+    and sending it again cannot fix it. Only 5xx and network errors back off.
     """
     h = {"User-Agent": user_agent()}
     h.update(headers or {})
@@ -58,6 +61,8 @@ def http_get(url: str, *, timeout: int = 60, retries: int = 4, data: bytes | Non
         except urllib.error.HTTPError as e:
             if e.code in (401, 403, 429):
                 raise Blocked(f"{e.code} from {url}") from e
+            if 400 <= e.code < 500:
+                raise
             last = e
         except (urllib.error.URLError, TimeoutError, ConnectionError) as e:
             last = e
@@ -192,3 +197,88 @@ def ledger(source: str):
 
 def log(msg: str) -> None:
     print(f"[{os.environ.get('INGEST_SOURCE', 'ingest')}] {msg}", file=sys.stderr, flush=True)
+
+
+def replace_table(conn, table: str, columns: list[str], rows) -> int:
+    """Full refresh in one transaction: the old rows stay visible until the
+    new set commits, and a failed run leaves them untouched."""
+    with conn.transaction():
+        conn.execute(f"DELETE FROM {table}")
+        return copy_rows(conn, table, columns, rows)
+
+
+# ---------------------------------------------------------------- the WARN spine
+# Every company-keyed source in data/tables.yaml carries the row filter
+# `company_id IN (SELECT company_id FROM demo_public_companies)`. In Azure the
+# company set is exactly the WARN filers, so a source row is publishable only
+# when its own name normalizes to a WARN filer's normalized name. Loaders apply
+# that at ingest: anything else is never written, not even to jobs_ingest.
+
+def warn_names(conn) -> dict[str, str]:
+    """normalized_name -> the filer's most recent spelling, for every WARN filer."""
+    return dict(conn.execute(
+        """SELECT DISTINCT ON (normalized_name) normalized_name, company_name
+             FROM warn_events WHERE normalized_name <> ''
+            ORDER BY normalized_name, notice_date DESC NULLS LAST""").fetchall())
+
+
+def due_lookups(conn, source: str, limit: int, recheck_days: int) -> list[tuple[str, str]]:
+    """WARN filers this per-company source hasn't checked (first) or checked
+    longest ago (then), at most `limit`, so one run stays short and polite and
+    successive runs walk the whole list."""
+    return conn.execute(
+        """WITH w AS (SELECT DISTINCT ON (normalized_name) normalized_name, company_name
+                        FROM warn_events WHERE normalized_name <> ''
+                       ORDER BY normalized_name, notice_date DESC NULLS LAST)
+           SELECT w.normalized_name, w.company_name
+             FROM w LEFT JOIN lookup_checks c ON c.source = %s AND c.normalized_name = w.normalized_name
+            WHERE c.checked_at IS NULL OR c.checked_at < now() - make_interval(days => %s)
+            ORDER BY c.checked_at NULLS FIRST, w.normalized_name
+            LIMIT %s""", (source, recheck_days, limit)).fetchall()
+
+
+def run_lookups(conn, source: str, lookup, *, limit: int, recheck_days: int, max_errors: int = 5) -> int:
+    """Drive a per-company source over due_lookups().
+
+    `lookup(conn, normalized_name, company_name) -> rows written` replaces that
+    company's rows itself. Progress is committed per company, so a Blocked
+    halfway keeps what was done. A 4xx/5xx/network error on one company is
+    logged and that company is retried next run; `max_errors` in a row means
+    the source itself is broken, so the run fails instead of hammering it.
+    """
+    todo = due_lookups(conn, source, limit, recheck_days)
+    conn.commit()
+    written = errors = 0
+    for key, name in todo:
+        try:
+            n = lookup(conn, key, name)
+        except Blocked:
+            conn.rollback()
+            raise
+        except (urllib.error.URLError, TimeoutError, ConnectionError, ValueError) as e:
+            conn.rollback()
+            errors += 1
+            log(f"{source}: lookup failed ({type(e).__name__}: {e}); retried next run")
+            if errors >= max_errors:
+                raise
+            continue
+        errors = 0
+        conn.execute(
+            """INSERT INTO lookup_checks (source, normalized_name, checked_at, found) VALUES (%s, %s, now(), %s)
+               ON CONFLICT (source, normalized_name) DO UPDATE SET checked_at = now(), found = excluded.found""",
+            (source, key, n))
+        conn.commit()
+        written += n
+    log(f"{source}: {len(todo)} companies checked, {written} rows written")
+    return written
+
+
+def get_cursor(conn, source: str) -> str | None:
+    row = conn.execute("SELECT value FROM source_cursors WHERE source = %s", (source,)).fetchone()
+    return row[0] if row else None
+
+
+def set_cursor(conn, source: str, value: str | None) -> None:
+    conn.execute("""INSERT INTO source_cursors (source, value, updated_at) VALUES (%s, %s, now())
+                    ON CONFLICT (source) DO UPDATE SET value = excluded.value, updated_at = now()""",
+                 (source, value))
