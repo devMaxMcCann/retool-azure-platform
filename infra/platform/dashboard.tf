@@ -123,6 +123,12 @@ resource "kubernetes_deployment_v1" "dashboard" {
   # this apply waiting for a pod that can't start yet.
   wait_for_rollout = false
   depends_on       = [azurerm_role_assignment.aks_acr_pull]
+
+  lifecycle {
+    # Reloader stamps STAKATER_*_SECRET env vars to roll the pod when
+    # pg-dashboard rotates; this container sets no env of its own.
+    ignore_changes = [spec[0].template[0].spec[0].container[0].env]
+  }
 }
 
 resource "kubernetes_service_v1" "dashboard" {
