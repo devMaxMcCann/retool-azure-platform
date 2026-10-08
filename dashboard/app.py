@@ -99,6 +99,50 @@ def live_jobs():
     return {"error": None, "cronjobs": rows, "running": running}
 
 
+# ---------------------------------------------------------------- cron
+
+_DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+
+def _ord(n):
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def cron_human(expr):
+    """Plain English for the shapes these CronJobs use; falls back to the raw line."""
+    try:
+        mi, hr, dom, mon, dow = expr.split()
+        at = f"{int(hr):02d}:{int(mi):02d} UTC"
+        if dom == "*" and mon == "*" and dow == "*":
+            return f"Daily {at}"
+        if dom == "*" and mon == "*" and dow.isdigit():
+            return f"Weekly, {_DOW[int(dow) % 7]} {at}"
+        if dom.isdigit() and mon == "*" and dow == "*":
+            return f"Monthly on the {_ord(int(dom))}, {at}"
+    except (ValueError, IndexError):
+        pass
+    return expr
+
+
+def cron_next(expr, now=None):
+    """Next fire time for the same shapes (minute/hour fixed, day/dow/dom fixed or *)."""
+    from datetime import timedelta
+    try:
+        mi, hr, dom, mon, dow = expr.split()
+        mi, hr = int(mi), int(hr)
+    except ValueError:
+        return None
+    now = now or datetime.now(timezone.utc)
+    day = now.replace(hour=hr, minute=mi, second=0, microsecond=0)
+    for _ in range(400):
+        ok = (dom == "*" or day.day == int(dom)) and (dow == "*" or (day.isoweekday() % 7) == int(dow)) \
+             and (mon == "*" or day.month == int(mon))
+        if ok and day > now:
+            return day
+        day += timedelta(days=1)
+    return None
+
+
 # ---------------------------------------------------------------- rendering
 
 CSS = """
@@ -187,7 +231,26 @@ def view_ingestion():
         f'<tr><td>{e(r["publisher"] or r["source"])}</td><td>{st(r)}</td><td class="n">{num(r["rows_written"])}</td>'
         f'<td>{e(r["last_success"].strftime("%Y-%m-%d %H:%M") if r["last_success"] else "-")}</td>'
         f'<td class="muted">{e((r["last_error"] or "")[:120])}</td></tr>' for r in fresh)
+    catalog = {c["source"]: c for c in cached("catalog", lambda: q(
+        "SELECT source, publisher, url, licence_status FROM analytics.source_catalog"))}
+    fresh_by = {r["source"]: r for r in fresh}
+    feed_rows = ""
+    for c in live["cronjobs"]:
+        key = c["step"].replace("-", "_")
+        cat = catalog.get(key, {})
+        fr = fresh_by.get(key, {})
+        nxt = None if c["suspended"] else cron_next(c["schedule"])
+        name = cat.get("publisher") or ("Analytics build (published layer)" if key == "analytics" else c["step"])
+        link = f'<a href="{e(cat["url"])}">{e(name)}</a>' if cat.get("url") else e(name)
+        status = "suspended" if c["suspended"] else (fr.get("last_status") or c["last_job"])
+        cls = "ok" if status in ("ok", "succeeded") else "bad" if status in ("failed", "blocked") else "warn"
+        feed_rows += (f'<tr><td>{link}</td><td><code>{e(c["step"])}</code></td><td>{e(cron_human(c["schedule"]))}</td>'
+                      f'<td><code>{e(c["schedule"])}</code></td><td>{e(nxt.strftime("%Y-%m-%d %H:%M UTC") if nxt else "-")}</td>'
+                      f'<td><span class="pill {cls}">{e(status)}</span></td><td class="n">{num(fr.get("rows_written"))}</td></tr>')
+    feeds = (f'<div class="scroll"><table><tr><th>Feed (publisher)</th><th>CronJob</th><th>Schedule</th><th>Cron</th>'
+             f'<th>Next run</th><th>Last status</th><th class="n">Rows</th></tr>{feed_rows}</table></div>')
     body = f"""<section><h2>Right now</h2><div class="stats">{stats}</div></section>
+<section><h2>Data feeds and schedules {tip("Every public feed is its own Kubernetes CronJob in the ingest namespace, pinned to an image tag and run on its own schedule (UTC). Next run is computed from the cron line. A suspended feed exists for the record but never runs (OSHA refuses non-browser clients, and that refusal is respected).")}</h2>{feeds}</section>
 <section><h2>Loaders in the cluster {tip("Live from the Kubernetes API: one CronJob per public source, each run as a short-lived pod in the restricted ingest namespace. A 401/403/429 from a publisher marks the run blocked and is never retried.")}</h2>{cj}</section>
 <section><h2>What each source has delivered {tip("From the run log, as of the last analytics build. Rows are what passed the publication filters; filtered rows are never stored.")}</h2>
 <div class="scroll"><table><tr><th>Source</th><th>Last status</th><th class="n">Rows</th><th>Last success (UTC)</th><th>Note</th></tr>{frows}</table></div></section>"""
@@ -359,7 +422,7 @@ class H(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(b)))
-        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self'; form-action 'self'; frame-ancestors 'none'")
+        self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
