@@ -140,8 +140,9 @@ module "user-ingress" {
   # zone, instead of the module's per-namespace Issuer.
   cluster_issuer_name = local.cluster_issuer_name
 
-  # Nonprod shares this gateway instead of paying for a second one.
-  extra_watch_namespaces = var.enable_nonprod ? ["retool-nonprod"] : []
+  # Nonprod and the read-only dashboard share this gateway instead of paying
+  # for more.
+  extra_watch_namespaces = concat(var.enable_nonprod ? ["retool-nonprod"] : [], ["dashboard"])
 
   retool_services = module.retool-services.outputs
   tags            = var.tags

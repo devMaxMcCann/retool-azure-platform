@@ -46,6 +46,13 @@ locals {
       database  = "jobs_analytics"
       kv_secret = "db-data-analytics-builder"
     }
+    dashboard = {
+      namespace = "dashboard" # read-only ingestion/analytics display (infra/platform/dashboard.tf)
+      sa        = "dashboard"
+      role      = "retool_reader" # same read-only role Retool uses: analytics schema only
+      database  = "jobs_analytics"
+      kv_secret = "db-data-retool-reader"
+    }
   }
 
   # Every folder that gets PG* secrets. Retool is not a Kubernetes consumer: on

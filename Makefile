@@ -6,7 +6,7 @@ RG      ?= rtl-platform
 AKS     ?= rtl-aks
 
 .PHONY: login bootstrap init plan apply stop start status infisical-ui kubeconfig destroy \
-        secrets-init secrets-plan secrets-apply ingest-image ingest-run ingest-status
+        secrets-init secrets-plan secrets-apply ingest-image dashboard-image ingest-run ingest-status
 
 login:            ## az login (interactive, once per session)
 	az login --only-show-errors >/dev/null && az account show --query "{sub:id,name:name,user:user.name}" -o table
@@ -75,6 +75,10 @@ TAG      ?= $(shell date -u +%Y%m%d-%H%M%S)
 ingest-image:
 	az acr build -r $(ACR) -t ingest:$(TAG) -f ingest/Dockerfile ingest
 	@echo "built ingest:$(TAG)"
+
+dashboard-image:
+	az acr build -r $(ACR) -t dashboard:$(TAG) -f dashboard/Dockerfile dashboard
+	@echo "built dashboard:$(TAG)"
 
 # Run one step now instead of waiting for its schedule: make ingest-run STEP=warn
 ingest-run:
