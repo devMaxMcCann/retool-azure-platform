@@ -119,3 +119,21 @@ variable "tags" {
     data    = "public-sources-only"
   }
 }
+
+# ---------- ingestion ----------
+
+variable "ingest_image_tag" {
+  type        = string
+  default     = null
+  description = "Tag from `make ingest-image`. Null = no CronJobs (the registry and namespace still exist)."
+}
+
+variable "ingest_contact" {
+  type        = string
+  default     = null
+  description = "Contact in every request's User-Agent (SEC's fair-access policy requires one). An email or URL publishers can reach."
+  validation {
+    condition     = var.ingest_image_tag == null || var.ingest_contact != null
+    error_message = "Set ingest_contact before enabling the ingestion CronJobs."
+  }
+}

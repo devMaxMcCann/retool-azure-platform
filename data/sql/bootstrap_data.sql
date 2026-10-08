@@ -5,7 +5,10 @@
 --   ingest_loader      owns jobs_ingest.public; the only writer of raw rows
 --   analytics_builder  owns jobs_analytics.analytics; builds serving tables
 --   analytics_fdw      read-only on jobs_ingest; what postgres_fdw logs in as
---   retool_reader      SELECT on both; what Retool's resource uses
+--   retool_reader      SELECT on jobs_analytics.analytics ONLY; what Retool's
+--                      resource uses. The publication filters are applied at
+--                      ingest AND analytics is the only published layer, so
+--                      Retool never sees raw rows.
 -- No role but the admin has CREATEDB/CREATEROLE; none can write the other's DB.
 
 SELECT format('CREATE ROLE %I LOGIN', r)
@@ -23,7 +26,8 @@ ALTER ROLE retool_reader SET statement_timeout = '30s';
 GRANT ingest_loader, analytics_builder TO :"admin";
 
 REVOKE ALL ON DATABASE jobs_ingest, jobs_analytics FROM PUBLIC;
-GRANT CONNECT ON DATABASE jobs_ingest TO ingest_loader, analytics_fdw, retool_reader;
+GRANT CONNECT ON DATABASE jobs_ingest TO ingest_loader, analytics_fdw;
+REVOKE CONNECT ON DATABASE jobs_ingest FROM retool_reader;
 GRANT CONNECT ON DATABASE jobs_analytics TO analytics_builder, retool_reader;
 
 -- ---------------------------------------------------------------- jobs_ingest
@@ -31,10 +35,15 @@ GRANT CONNECT ON DATABASE jobs_analytics TO analytics_builder, retool_reader;
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 ALTER SCHEMA public OWNER TO ingest_loader;
-GRANT USAGE ON SCHEMA public TO analytics_fdw, retool_reader;
-GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytics_fdw, retool_reader;
+GRANT USAGE ON SCHEMA public TO analytics_fdw;
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO analytics_fdw;
 ALTER DEFAULT PRIVILEGES FOR ROLE ingest_loader IN SCHEMA public
-  GRANT SELECT ON TABLES TO analytics_fdw, retool_reader;
+  GRANT SELECT ON TABLES TO analytics_fdw;
+-- Undo the earlier grant to retool_reader (this script used to give it raw access).
+REVOKE ALL ON SCHEMA public FROM retool_reader;
+REVOKE ALL ON ALL TABLES IN SCHEMA public FROM retool_reader;
+ALTER DEFAULT PRIVILEGES FOR ROLE ingest_loader IN SCHEMA public
+  REVOKE SELECT ON TABLES FROM retool_reader;
 
 -- ------------------------------------------------------------- jobs_analytics
 \connect jobs_analytics

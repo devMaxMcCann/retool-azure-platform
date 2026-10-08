@@ -31,3 +31,11 @@ output "data_db_host" {
   description = "Private FQDN; resolves only inside the VNet. Retool resource host."
   value       = azurerm_postgresql_flexible_server.data.fqdn
 }
+
+output "acr_login_server" {
+  value = azurerm_container_registry.main.login_server
+}
+
+output "acr_name" {
+  value = azurerm_container_registry.main.name
+}
