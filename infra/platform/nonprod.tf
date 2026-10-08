@@ -78,3 +78,19 @@ module "retool-nonprod" {
 
   depends_on = [module.retool, kubectl_manifest.nonprod_certificate, azurerm_postgresql_flexible_server_database.main_extra]
 }
+
+# Explicit record: the wildcard `*` does NOT cover nonprod once cert-manager
+# writes `_acme-challenge.nonprod` -- that makes `nonprod` an existing (empty)
+# name, and a wildcard never answers for an existing name (RFC 4592 s2.2.1).
+resource "azurerm_dns_a_record" "nonprod" {
+  count = var.enable_nonprod ? 1 : 0
+
+  name                = "nonprod"
+  zone_name           = var.domain_name
+  resource_group_name = azurerm_resource_group.main.name
+  ttl                 = 300
+  target_resource_id  = "${azurerm_resource_group.main.id}/providers/Microsoft.Network/publicIPAddresses/${var.prefix}-appgw-ip"
+  tags                = var.tags
+
+  depends_on = [module.user-ingress]
+}
