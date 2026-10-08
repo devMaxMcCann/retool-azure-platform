@@ -76,6 +76,11 @@ resource "kubectl_manifest" "infisical_secrets" {
             REDIS_URL         = "redis://:{{ .redispw }}@redis-master:6379"
             SITE_URL          = "http://localhost:8080"
             TELEMETRY_ENABLED = "false"
+            # Kubernetes auth validates tokens against the in-cluster API (10.96.0.1);
+            # Infisical's SSRF guard rejects private IPs ("Local IPs not allowed as
+            # URL") without this. Acceptable: only Infisical admins configure outbound
+            # targets, and Infisical has no public ingress.
+            ALLOW_INTERNAL_IP_CONNECTIONS = "true"
           }
         }
       }
