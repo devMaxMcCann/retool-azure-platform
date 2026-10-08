@@ -26,6 +26,16 @@ Copied verbatim from the registry release, then two `lifecycle` blocks added
    `tags["managed-by-k8s-ingress"]`, which AGIC writes on every sync and
    Terraform otherwise tries to remove on every plan.
 
+3. AGIC's `kubernetes.ingressClass` set to `azure/<class>`, the same string as
+   `ingressClassResource.controllerValue`. AGIC 1.9.7 replaces its controller
+   name with INGRESS_CLASS when that is set
+   (`pkg/environment/environment.go`), then only claims Ingresses whose
+   IngressClass `spec.controller` equals it. Upstream sets `<class>` vs
+   `azure/<class>`, so AGIC claimed nothing and the gateway served only its
+   default 502 pool. Proved live (ConfigMap edit -> both pools + 443 listeners
+   appeared) before patching. Changing controllerValue instead would recreate
+   the IngressClass (spec.controller is immutable).
+
 Upgrading the blueprint: diff the new release's azure-vnet against this copy,
 re-apply both patches, or drop the vendor copy if upstream fixed them.
 Upstream report: TODO (open an issue on tryretool/terraform-retool-self-hosted-blueprints).
