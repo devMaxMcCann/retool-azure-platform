@@ -8,6 +8,41 @@ locals {
   blueprint_version   = "~> 0.5"
   resource_group_name = "${var.prefix}-platform"
   cluster_issuer_name = "letsencrypt-azuredns"
+
+  # Requests sized from observed idle usage; limits left high enough to burst.
+  # The chart defaults request ~11 vCPU per release, which left jobs-runner
+  # (the pod that runs Retool's DB migrations) unschedulable on 3 nodes, so
+  # every other pod waited on "906 pending blocking database migrations".
+  retool_demo_sizing = {
+    replicaCount = 1
+    resources = {
+      requests = { cpu = "250m", memory = "1536Mi" }
+      limits   = { cpu = "2", memory = "4Gi" }
+    }
+    jobRunner = { resources = {
+      requests = { cpu = "200m", memory = "1Gi" }
+      limits   = { cpu = "1", memory = "2Gi" }
+    } }
+    dbconnector = { resources = {
+      requests = { cpu = "100m", memory = "512Mi" }
+      limits   = { cpu = "1", memory = "2Gi" }
+    } }
+    workflows = {
+      resources = {
+        requests = { cpu = "200m", memory = "1Gi" }
+        limits   = { cpu = "1", memory = "2Gi" }
+      }
+      backend = { resources = {
+        requests = { cpu = "200m", memory = "1Gi" }
+        limits   = { cpu = "2", memory = "4Gi" }
+      } }
+    }
+    codeExecutor = { resources = {
+      requests = { cpu = "100m", memory = "512Mi" }
+      limits   = { cpu = "1", memory = "1Gi" }
+    } }
+  }
+  retool_sizing_values = var.retool_size == "demo" ? [yamlencode(local.retool_demo_sizing)] : []
 }
 
 resource "azurerm_resource_group" "main" {
@@ -124,9 +159,9 @@ module "retool" {
   domain_name     = var.domain_name
   https_enabled   = true
 
-  retool_helm_extra_values = [yamlencode({
+  retool_helm_extra_values = concat(local.retool_sizing_values, [yamlencode({
     image = { tag = var.retool_image_tag_prod }
-  })]
+  })])
 
   depends_on = [module.aks, module.retool-services, module.user-ingress, kubectl_manifest.cluster_issuer]
 }

@@ -61,7 +61,7 @@ module "retool-nonprod" {
   domain_name   = local.nonprod_domain
   https_enabled = true
 
-  retool_helm_extra_values = [yamlencode({
+  retool_helm_extra_values = concat(local.retool_sizing_values, [yamlencode({
     image = { tag = var.retool_image_tag_nonprod }
     ingress = {
       annotations = {
@@ -74,7 +74,7 @@ module "retool-nonprod" {
     }
     # Smaller footprint than prod: nonprod is for verifying upgrades, not load.
     replicaCount = 1
-  })]
+  })])
 
   depends_on = [module.retool, kubectl_manifest.nonprod_certificate, azurerm_postgresql_flexible_server_database.main_extra]
 }

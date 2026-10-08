@@ -95,6 +95,16 @@ variable "license_key_secret_path_nonprod" {
   default = null
 }
 
+variable "retool_size" {
+  type        = string
+  default     = "demo"
+  description = "demo = small CPU/memory REQUESTS (limits kept) so prod+nonprod fit on 2 nodes; prod = the chart's defaults (~11 vCPU requested per release). Observed usage at idle is 1-3% CPU."
+  validation {
+    condition     = contains(["demo", "prod"], var.retool_size)
+    error_message = "retool_size must be demo or prod."
+  }
+}
+
 variable "enable_nonprod" {
   type        = bool
   default     = true
