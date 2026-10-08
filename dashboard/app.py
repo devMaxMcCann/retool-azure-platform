@@ -168,7 +168,7 @@ th,td{white-space:nowrap}
 .i{vertical-align:middle;margin-top:-2px}
 .i:hover::after,.i:focus::after{white-space:normal}
 .scroll{padding-bottom:4px}
-svg.arch{width:100%;min-width:760px;height:auto}svg text{font-family:Arial,sans-serif}
+svg.arch{width:100%;min-width:900px;height:auto}svg text{font-family:Arial,sans-serif}
 form input{padding:5px 8px;border:1px solid #bbb;border-radius:4px;min-width:240px}form button{padding:5px 10px}
 th a.sort{color:inherit;text-decoration:none}th a.sort:hover{text-decoration:underline}a{color:var(--blue)}footer{text-align:center;color:var(--muted);font-size:.8rem;padding:10px}
 """
@@ -377,7 +377,10 @@ ARCH_SVG = (os.path.join(os.path.dirname(os.path.abspath(__file__)), "architectu
 def view_architecture():
     with open(ARCH_SVG) as f:
         svg = f.read()
-    body = f"""<section><h2>Architecture</h2><div class="scroll">{svg}</div></section>
+    body = f"""<section><h2>Architecture</h2><div class="scroll">{svg}</div>
+<p class="muted">Icons: Microsoft Azure Architecture Icons (used per Microsoft's icon terms); Kubernetes icon set (Apache-2.0 / CC-BY-4.0).
+Postgres, PostgreSQL and the Slonik Logo are trademarks or registered trademarks of the PostgreSQL Community Association of Canada,
+and used with their permission. Cloudflare, Retool, Infisical, Let's Encrypt and GitHub are shown by name only.</p></section>
 <section><h2>How it works</h2><ul>
 <li><b>Edge.</b> Cloudflare holds the maxmccann.us zone and delegates <code>retool.maxmccann.us</code> to Azure DNS (DNS only, not proxied).
 Traffic goes straight to an Azure Application Gateway; certificates are Let's Encrypt via DNS-01 against Azure DNS.</li>
