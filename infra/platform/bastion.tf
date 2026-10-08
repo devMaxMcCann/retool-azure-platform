@@ -14,8 +14,9 @@
 #   * No password logins at all; admin goes through `az vm run-command`.
 
 variable "enable_retool_cloud_bastion" {
-  type    = bool
-  default = true
+  type        = bool
+  default     = false
+  description = "Off: an internet-facing SSH path into the VNet is a deliberate decision, not a default. Preferred route is self-hosted Retool in AKS (Enterprise trial), which needs no inbound path at all. Also blocked on quota: standardBasv2Family is 0 on this subscription."
 }
 
 variable "retool_cloud_cidrs" {
