@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import io
 import os
+import time
 import re
 
 import openpyxl
@@ -22,6 +23,9 @@ from ..common import http_get, log, normalize, synthetic_company_id, to_date
 SOURCE = "warn"
 ARCHIVE_URL = "https://www.illinoisworknet.com/LayoffRecovery/Pages/ArchivedWARNReports.aspx"
 _LINK_RE = re.compile(r'href="(/_layouts/(?:15/)?download\.aspx\?SourceUrl=[^"]*?\.xlsx)"', re.IGNORECASE)
+# Pause between report downloads: the first run backfills every report since
+# 2020 from a small state site, so it must not arrive as a burst.
+DELAY = float(os.getenv("WARN_DELAY_SECONDS", "3"))
 MONTHS_BACK = int(os.getenv("WARN_MONTHS_BACK", "120"))  # every .xlsx report (2020 on); older ones are PDF
 
 # Column layout drifts between months (homelab warn_act.py), so columns are
@@ -124,6 +128,7 @@ def run(conn) -> int:
     for url in list_reports():
         if url in done:
             continue
+        time.sleep(DELAY)
         with http_get(url) as r:
             events = parse_report(r.read())
         with conn.transaction():
