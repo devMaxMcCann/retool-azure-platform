@@ -237,7 +237,13 @@ resource "kubernetes_job_v1" "db_bootstrap" {
             name       = "sql"
             mount_path = "/sql"
           }
+          # run_as_non_root/run_as_user repeated here on purpose: the provider
+          # sends an explicit runAsNonRoot=false for any container
+          # security_context block that omits it, which overrides the pod-level
+          # true and gets every pod rejected by Pod Security "restricted".
           security_context {
+            run_as_non_root            = true
+            run_as_user                = 70
             allow_privilege_escalation = false
             read_only_root_filesystem  = true
             capabilities { drop = ["ALL"] }
