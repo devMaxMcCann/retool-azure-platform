@@ -170,7 +170,9 @@ resource "kubernetes_ingress_v1" "dashboard" {
       # Before prod's *.<domain> wildcard listener (1000) and nonprod (900).
       "appgw.ingress.kubernetes.io/rule-priority"     = "800"
       "appgw.ingress.kubernetes.io/health-probe-path" = "/healthz"
-      "appgw.ingress.kubernetes.io/ssl-redirect"      = "true"
+      # No ssl-redirect: it adds a second (port 80) rule that inherits the same
+      # rule-priority, and App Gateway rejects the whole config ("Priority must
+      # be unique across all the request routing rules").
     }
   }
   spec {
