@@ -56,8 +56,16 @@ def main(argv: list[str]) -> int:
 
     if step == "schema":
         with connect() as conn:
-            conn.execute((Path(__file__).parent.parent / "schema.sql").read_text())
-            catalog.seed(conn)
+            # Every loader pod runs this as its init container, so several can
+            # start at once; CREATE ... IF NOT EXISTS is not safe under that
+            # (duplicate key on pg_type). Serialize it, as the homelab's
+            # init_db does with pg_advisory_lock(918273645).
+            conn.execute("SELECT pg_advisory_lock(918273645)")
+            try:
+                conn.execute((Path(__file__).parent.parent / "schema.sql").read_text())
+                catalog.seed(conn)
+            finally:
+                conn.execute("SELECT pg_advisory_unlock(918273645)")
         log("schema applied, catalog seeded")
         return 0
     if step == "analytics":
