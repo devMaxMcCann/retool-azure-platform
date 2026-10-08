@@ -62,7 +62,8 @@ resource "infisical_project" "data" {
   slug                       = "data-platform"
   description                = "App-to-app secrets for the public-data pipeline and the Retool resources that read it."
   should_create_default_envs = false
-  audit_log_retention_days   = 30
+  # audit_log_retention_days is a paid-plan setting on self-hosted Infisical
+  # ("plan limit reached"); the free tier keeps its default retention.
 }
 
 resource "infisical_project_environment" "demo" {
@@ -125,9 +126,12 @@ resource "infisical_identity" "consumer" {
 }
 
 resource "infisical_identity_kubernetes_auth" "consumer" {
-  for_each                      = local.consumers
-  identity_id                   = infisical_identity.consumer[each.key].id
-  kubernetes_host               = "https://kubernetes.default.svc" # Infisical runs in-cluster
+  for_each    = local.consumers
+  identity_id = infisical_identity.consumer[each.key].id
+  # FQDN on purpose: Infisical (Node) resolves this with a plain A query that
+  # ignores the pod's DNS search list, so the short "kubernetes.default.svc"
+  # fails with ENOTFOUND.
+  kubernetes_host               = "https://kubernetes.default.svc.cluster.local"
   kubernetes_ca_certificate     = local.cluster_ca
   token_reviewer_mode           = "api"
   token_reviewer_jwt            = kubernetes_secret_v1.token_reviewer.data["token"]
