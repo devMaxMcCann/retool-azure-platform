@@ -106,7 +106,7 @@ CSS = """
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:var(--ink);background:#fff;line-height:1.5}
 header{background:var(--blue);color:#fff;padding:14px 20px}header h1{margin:0;font-size:1.3rem}
 header nav a{color:#fff;margin-right:16px;text-decoration:none;font-size:.92rem}header p{margin:2px 0 6px;font-size:.88rem;opacity:.9}
-main{max-width:1150px;margin:0 auto;padding:16px}section{background:var(--card);border-radius:8px;padding:14px 16px;margin-bottom:16px}
+main{max-width:none;margin:0 auto;padding:16px 24px}section{background:var(--card);border-radius:8px;padding:14px 16px;margin-bottom:16px}
 h2{margin:0 0 8px;font-size:1.1rem}table{width:100%;border-collapse:collapse;background:#fff;font-size:.88rem}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef0f3;font-weight:600}
 td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow-x:auto}
@@ -120,6 +120,9 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow-x:
 .i:hover::after,.i:focus::after{content:attr(data-tip);position:absolute;left:18px;top:-4px;width:260px;background:#222;color:#fff;
  font-style:normal;font-weight:400;font-size:.78rem;line-height:1.35;padding:6px 8px;border-radius:5px;z-index:5;text-align:left}
 th .i:hover::after,th .i:focus::after{left:auto;right:-6px;top:20px}
+th,td{white-space:nowrap}
+.i{vertical-align:middle;margin-top:-2px}
+.i:hover::after,.i:focus::after{white-space:normal}
 .scroll{padding-bottom:4px}
 svg.arch{width:100%;min-width:760px;height:auto}svg text{font-family:Arial,sans-serif}
 form input{padding:5px 8px;border:1px solid #bbb;border-radius:4px;min-width:240px}form button{padding:5px 10px}
@@ -198,8 +201,9 @@ EXPLAIN = {
     "confidence": ("How much independent public evidence identifies this company, 0 to 100: licences, an EIN, "
                    "SEC filings, a geocoded address, federal awards, registry entries. Low means we know little, "
                    "not that the company is bad."),
-    "grade": ("Overall employer rating combining both: 100 - risk x 60 - (100 - confidence) x 0.4, banded "
-              "A+ (97+), A (90+), B (80+), C (70+), D (60+), F (below 60). Higher is better."),
+    "grade": ("Overall employer rating, mostly from risk: 100 - risk x 60 - (100 - confidence) x 0.1, banded "
+              "A+ (90+), A (80+), B (70+), C (60+), D (50+), F (below 50). Missing public data barely counts against "
+              "a company; adverse records do. Higher is better."),
 }
 
 SORTABLE = {
@@ -207,7 +211,7 @@ SORTABLE = {
     "company": ("company_name", "Company", False, "asc"),
     "risk": ("risk_score", "Risk", True, "desc"),
     "confidence": ("confidence_score", "Confidence", True, "desc"),
-    "grade": ("goodness_percent", "Employer rating", False, "desc"),
+    "grade": ("employer_rating_score", "Employer rating", False, "desc"),
     "notices": ("n_warn_events", "WARN notices", True, "desc"),
     "employees": ("employees_affected_total", "Employees affected", True, "desc"),
     "latest": ("latest_notice_date", "Latest notice", False, "desc"),
@@ -226,7 +230,7 @@ def view_companies(query):
         direction = default_dir
     # Column and direction come only from the whitelist above, never the URL.
     order = f"{col} {direction.upper()} NULLS LAST, employees_affected_total DESC NULLS LAST, company_id"
-    sql = ("SELECT company_id, company_name, counties, risk_score, confidence_score, goodness_percent, goodness_grade, "
+    sql = ("SELECT company_id, company_name, counties, risk_score, confidence_score, employer_rating_score, employer_rating, "
            "n_warn_events, employees_affected_total, latest_notice_date FROM analytics.company_rollup "
            + ("WHERE company_name ILIKE %s " if term else "")
            + f"ORDER BY {order} LIMIT 300")
@@ -244,7 +248,7 @@ def view_companies(query):
     tr = "".join(
         f'<tr><td><a href="/company/{r["company_id"]}">{e(r["company_name"] or "")}</a></td>'
         f'<td class="n">{num(r["risk_score"], 2)}</td><td class="n">{num(r["confidence_score"])}</td>'
-        f'<td class="{grade_cls(r["goodness_grade"])}"><b>{e(r["goodness_grade"] or "-")}</b> <span class="muted">{num(r["goodness_percent"])}%</span></td>'
+        f'<td class="{grade_cls(r["employer_rating"])}"><b>{e(r["employer_rating"] or "-")}</b> <span class="muted">{num(r["employer_rating_score"])}%</span></td>'
         f'<td class="n">{num(r["n_warn_events"])}</td><td class="n">{num(r["employees_affected_total"])}</td>'
         f'<td>{e(str(r["latest_notice_date"] or ""))}</td><td class="muted">{e((r["counties"] or "")[:40])}</td></tr>' for r in rows)
     weights = cached("weights", lambda: q("SELECT axis, label, explanation FROM analytics.score_weights ORDER BY axis, label"))
@@ -258,6 +262,25 @@ def view_companies(query):
     return page("Company risk", body)
 
 
+FIELD_LABELS = {
+    "company_name": "Company", "naics": "NAICS industry code", "counties": "Illinois counties",
+    "risk_score": "Risk (0-1)", "confidence_score": "Confidence (0-100)",
+    "employer_rating_score": "Employer rating score (0-100)", "employer_rating": "Employer rating",
+    "n_warn_events": "WARN notices", "employees_affected_total": "Employees affected (WARN)",
+    "first_notice_date": "First WARN notice", "latest_notice_date": "Latest WARN notice",
+    "n_licenses": "Chicago business licences", "n_idfpr_licenses": "IDFPR licences",
+    "n_osha_reports": "OSHA severe injury reports", "certified_lca_count": "Certified H-1B LCAs",
+    "certified_perm_count": "Certified PERM filings", "max_annual_wage_filed": "Highest annual wage filed (DOL)",
+    "ppp_approved": "SBA PPP approved ($)", "msha_sig_sub": "MSHA significant & substantial violations",
+    "n_total": "Total linked records", "ein": "EIN (IRS)", "cik": "SEC CIK",
+    "n_sec_item205": "SEC 8-K Item 2.05 filings", "sec_latest_revenue": "Latest revenue (SEC)",
+    "n_federal_awards": "Federal awards", "federal_award_amount": "Federal award amount ($)",
+    "fdic_cert": "FDIC certificate", "cms_overall_rating": "CMS hospital rating",
+    "fmcsa_usdot": "USDOT number (FMCSA)", "cfpb_complaints": "CFPB complaints",
+    "n_ftc_cases": "FTC cases", "n_fed_actions": "Federal Reserve actions",
+}
+
+
 def view_company(cid):
     r = q("SELECT * FROM analytics.company_rollup WHERE company_id = %s", (cid,))
     if not r:
@@ -267,16 +290,16 @@ def view_company(cid):
     rb, cb = (s[0]["risk_breakdown"], s[0]["confidence_breakdown"]) if s else ({}, {})
     rbr = "".join(f'<tr><td>{e(k)}</td><td class="n">{num(v, 2) if v is not None else "<span class=\"muted\">no data</span>"}</td></tr>' for k, v in rb.items())
     cbr = "".join(f'<tr><td>{e(k)}</td><td>{"<span class=\"pill ok\">held</span>" if v else "<span class=\"pill warn\">missing</span>"}</td></tr>' for k, v in cb.items())
-    facts = "".join(f'<tr><td>{e(k)}</td><td>{e(str(v))}</td></tr>' for k, v in r.items()
+    facts = "".join(f'<tr><td>{e(FIELD_LABELS.get(k, k.replace("_", " ").capitalize()))}</td><td>{e(str(v))}</td></tr>' for k, v in r.items()
                     if v not in (None, "") and k not in ("company_id",))
     recs = q("SELECT record_type, record_date, detail, address, county, employees_affected, source_url "
              "FROM analytics.records WHERE company_id = %s ORDER BY record_date DESC NULLS LAST LIMIT 100", (cid,))
     rr = "".join(f'<tr><td>{e(x["record_type"])}</td><td>{e(str(x["record_date"] or ""))}</td><td>{e(x["detail"] or "")}</td>'
                  f'<td>{e(x["address"] or "")}</td><td class="n">{num(x["employees_affected"])}</td>'
                  f'<td>{"<a href=\"" + e(x["source_url"]) + "\">source</a>" if x["source_url"] else ""}</td></tr>' for x in recs)
-    body = f"""<section><h2>{e(r["company_name"] or "")} <span class="{grade_cls(r.get("goodness_grade"))}">{e(r.get("goodness_grade") or "")}</span></h2>
+    body = f"""<section><h2>{e(r["company_name"] or "")} <span class="{grade_cls(r.get("employer_rating"))}">{e(r.get("employer_rating") or "")}</span></h2>
 <div class="stats"><div class="stat"><b>{num(r.get("risk_score"),2)}</b><span>risk {tip(EXPLAIN["risk"])}</span></div><div class="stat"><b>{num(r.get("confidence_score"))}</b><span>confidence {tip(EXPLAIN["confidence"])}</span></div>
-<div class="stat"><b>{num(r.get("goodness_percent"))}%</b><span>employer rating {tip(EXPLAIN["grade"])}</span></div></div></section>
+<div class="stat"><b>{num(r.get("employer_rating_score"))}%</b><span>employer rating {tip(EXPLAIN["grade"])}</span></div></div></section>
 <section><h2>Why this score</h2><div class="scroll" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
 <table><tr><th>Risk signal</th><th class="n">Value (0-1)</th></tr>{rbr}</table>
 <table><tr><th>Evidence pillar</th><th>State</th></tr>{cbr}</table></div></section>

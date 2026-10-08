@@ -220,7 +220,8 @@ CREATE INDEX ON analytics.fed_enforcement_actions (company_id);
 --                measures that have a finding (a source with nothing to say
 --                drops out instead of counting as zero, homelab scoring.py)
 --   confidence = weighted share of confidence pillars held (0..100)
---   goodness   = 100 - (1 - confidence)*40 - risk*60   (homelab common.goodness_nines)
+--   employer_rating_score = 100 - (1 - confidence)*40 - risk*60 (homelab common.goodness_nines),
+--   banded into employer_rating A+..F. (Homelab calls these employer_rating_score/employer_rating.)
 -- Every company is a WARN filer, so every company carries the WARN risk
 -- signal: this registry is "employers that filed layoff notices", by design.
 -- Measure names follow the homelab's (warn_act -> warn, identity_ein,
@@ -299,14 +300,14 @@ WITH grid AS (
       FROM grid GROUP BY company_id
 )
 SELECT company_id, risk_score, confidence_score,
-       greatest(0, 100 - (1 - confidence_score / 100) * 40 - coalesce(risk_score, 0) * 60) AS goodness_percent,
+       greatest(0, 100 - (100 - confidence_score) * 0.1 - coalesce(risk_score, 0) * 60) AS employer_rating_score,
        risk_breakdown, confidence_breakdown
   FROM agg;
-ALTER TABLE analytics.company_scores ADD COLUMN goodness_grade text;
-UPDATE analytics.company_scores SET goodness_grade = CASE
-    WHEN goodness_percent >= 97 THEN 'A+' WHEN goodness_percent >= 90 THEN 'A'
-    WHEN goodness_percent >= 80 THEN 'B'  WHEN goodness_percent >= 70 THEN 'C'
-    WHEN goodness_percent >= 60 THEN 'D'  ELSE 'F' END;
+ALTER TABLE analytics.company_scores ADD COLUMN employer_rating text;
+UPDATE analytics.company_scores SET employer_rating = CASE
+    WHEN employer_rating_score >= 90 THEN 'A+' WHEN employer_rating_score >= 80 THEN 'A'
+    WHEN employer_rating_score >= 70 THEN 'B'  WHEN employer_rating_score >= 60 THEN 'C'
+    WHEN employer_rating_score >= 50 THEN 'D'  ELSE 'F' END;
 ALTER TABLE analytics.company_scores ADD PRIMARY KEY (company_id);
 
 -- -------------------------------------------------------- serving layer
@@ -314,7 +315,7 @@ ALTER TABLE analytics.company_scores ADD PRIMARY KEY (company_id);
 DROP TABLE IF EXISTS analytics.company_rollup;
 CREATE TABLE analytics.company_rollup AS
 SELECT c.company_id, c.company_name, c.naics, c.counties,
-       s.risk_score, s.confidence_score, s.goodness_percent, s.goodness_grade,
+       s.risk_score, s.confidence_score, s.employer_rating_score, s.employer_rating,
        c.n_warn_events, c.employees_affected_total, c.first_notice_date, c.latest_notice_date,
        (SELECT count(*) FROM analytics.license_links l WHERE l.company_id = c.company_id)          AS n_licenses,
        (SELECT count(*) FROM analytics.idfpr_links l WHERE l.company_id = c.company_id)            AS n_idfpr_licenses,
@@ -388,7 +389,7 @@ UNION ALL SELECT 'license_description', license_description, count(*) FROM analy
           WHERE license_description IS NOT NULL GROUP BY 2
 UNION ALL SELECT 'business_activity', business_activity, count(*) FROM analytics.chicago_business_licenses
           WHERE business_activity IS NOT NULL GROUP BY 2
-UNION ALL SELECT 'grade', goodness_grade, count(*) FROM analytics.company_scores GROUP BY 2;
+UNION ALL SELECT 'grade', employer_rating, count(*) FROM analytics.company_scores GROUP BY 2;
 
 DROP TABLE IF EXISTS analytics.counts;
 CREATE TABLE analytics.counts AS
