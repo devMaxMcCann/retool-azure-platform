@@ -69,7 +69,7 @@ variable "data_db_storage_mb" {
 
 variable "retool_chart_version" {
   type    = string
-  default = "6.12.1"
+  default = "6.12.0" # newest on charts.retool.com; GitHub main can be ahead of the published repo
 }
 
 variable "retool_image_tag_prod" {
