@@ -125,8 +125,8 @@ module "retool-services" {
 }
 
 module "user-ingress" {
-  source  = "tryretool/self-hosted-blueprints/retool//modules/azure-user-ingress"
-  version = "~> 0.5"
+  # Vendored 0.5.2 + patches; see ../vendor/PATCHES.md.
+  source = "../vendor/azure-user-ingress"
 
   prefix              = var.prefix
   resource_group_name = azurerm_resource_group.main.name
@@ -139,6 +139,9 @@ module "user-ingress" {
   # One ClusterIssuer (tls.tf) serves prod, nonprod and anything else in the
   # zone, instead of the module's per-namespace Issuer.
   cluster_issuer_name = local.cluster_issuer_name
+
+  # Nonprod shares this gateway instead of paying for a second one.
+  extra_watch_namespaces = var.enable_nonprod ? ["retool-nonprod"] : []
 
   retool_services = module.retool-services.outputs
   tags            = var.tags
