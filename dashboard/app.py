@@ -119,8 +119,11 @@ td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}.scroll{overflow-x:
  text-align:center;line-height:13px;font-style:italic;cursor:help;position:relative;margin-left:4px;font-weight:700}
 .i:hover::after,.i:focus::after{content:attr(data-tip);position:absolute;left:18px;top:-4px;width:260px;background:#222;color:#fff;
  font-style:normal;font-weight:400;font-size:.78rem;line-height:1.35;padding:6px 8px;border-radius:5px;z-index:5;text-align:left}
+th .i:hover::after,th .i:focus::after{left:auto;right:-6px;top:20px}
+.scroll{padding-bottom:4px}
+svg.arch{width:100%;min-width:760px;height:auto}svg text{font-family:Arial,sans-serif}
 form input{padding:5px 8px;border:1px solid #bbb;border-radius:4px;min-width:240px}form button{padding:5px 10px}
-a{color:var(--blue)}footer{text-align:center;color:var(--muted);font-size:.8rem;padding:10px}
+th a.sort{color:inherit;text-decoration:none}th a.sort:hover{text-decoration:underline}a{color:var(--blue)}footer{text-align:center;color:var(--muted);font-size:.8rem;padding:10px}
 """
 
 e = html.escape
@@ -143,7 +146,7 @@ def page(title, body, refresh=None):
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 {meta}<title>{e(title)} | Public-data platform</title><style>{CSS}</style></head><body>
 <header><h1>Public-data platform</h1><p>Azure AKS ingestion pods &rarr; Postgres &rarr; published analytics. Read-only view.</p>
-<nav><a href="/">Ingestion</a><a href="/companies">Company risk</a><a href="/sources">Sources</a></nav></header>
+<nav><a href="/">Company risk</a><a href="/ingestion">Ingestion</a><a href="/sources">Sources</a><a href="/architecture">Architecture</a></nav></header>
 <main>{body}</main><footer>Analytics last built {e(b)} &middot; reads only the published layer as a read-only role</footer></body></html>"""
 
 
@@ -188,13 +191,56 @@ def view_ingestion():
     return page("Ingestion", body, refresh=60)
 
 
+EXPLAIN = {
+    "risk": ("How much adverse public record we found, 0 to 1: a weighted average of the conduct signals "
+             "present (WARN layoff notices, MSHA safety violations, OSHA severe injuries, SEC 8-K Item 2.05 "
+             "restructuring filings, FTC cases, Federal Reserve enforcement actions). 0 = none found. Higher is worse."),
+    "confidence": ("How much independent public evidence identifies this company, 0 to 100: licences, an EIN, "
+                   "SEC filings, a geocoded address, federal awards, registry entries. Low means we know little, "
+                   "not that the company is bad."),
+    "grade": ("Overall employer rating combining both: 100 - risk x 60 - (100 - confidence) x 0.4, banded "
+              "A+ (97+), A (90+), B (80+), C (70+), D (60+), F (below 60). Higher is better."),
+}
+
+SORTABLE = {
+    # key: (SQL expression, label, numeric, default direction)
+    "company": ("company_name", "Company", False, "asc"),
+    "risk": ("risk_score", "Risk", True, "desc"),
+    "confidence": ("confidence_score", "Confidence", True, "desc"),
+    "grade": ("goodness_percent", "Employer rating", False, "desc"),
+    "notices": ("n_warn_events", "WARN notices", True, "desc"),
+    "employees": ("employees_affected_total", "Employees affected", True, "desc"),
+    "latest": ("latest_notice_date", "Latest notice", False, "desc"),
+    "counties": ("counties", "Counties", False, "asc"),
+}
+
+
 def view_companies(query):
     term = (query.get("q") or [""])[0].strip()
+    sort = (query.get("sort") or ["risk"])[0]
+    if sort not in SORTABLE:
+        sort = "risk"
+    col, _, _, default_dir = SORTABLE[sort]
+    direction = (query.get("dir") or [default_dir])[0]
+    if direction not in ("asc", "desc"):
+        direction = default_dir
+    # Column and direction come only from the whitelist above, never the URL.
+    order = f"{col} {direction.upper()} NULLS LAST, employees_affected_total DESC NULLS LAST, company_id"
     sql = ("SELECT company_id, company_name, counties, risk_score, confidence_score, goodness_percent, goodness_grade, "
            "n_warn_events, employees_affected_total, latest_notice_date FROM analytics.company_rollup "
            + ("WHERE company_name ILIKE %s " if term else "")
-           + "ORDER BY risk_score DESC NULLS LAST, employees_affected_total DESC NULLS LAST LIMIT 200")
+           + f"ORDER BY {order} LIMIT 300")
     rows = q(sql, (f"%{term}%",) if term else ())
+
+    def th(key):
+        _, label, numeric, d = SORTABLE[key]
+        nxt = ("asc" if direction == "desc" else "desc") if key == sort else d
+        arrow = (" &#9660;" if direction == "desc" else " &#9650;") if key == sort else ""
+        qs = urllib.parse.urlencode({k: v for k, v in (("q", term), ("sort", key), ("dir", nxt)) if v})
+        info = tip(EXPLAIN[key]) if key in EXPLAIN else ""
+        return (f'<th class="{"n" if numeric else ""}" aria-sort="{("descending" if direction == "desc" else "ascending") if key == sort else "none"}">'
+                f'<a class="sort" href="/?{qs}">{e(label)}{arrow}</a>{info}</th>')
+
     tr = "".join(
         f'<tr><td><a href="/company/{r["company_id"]}">{e(r["company_name"] or "")}</a></td>'
         f'<td class="n">{num(r["risk_score"], 2)}</td><td class="n">{num(r["confidence_score"])}</td>'
@@ -203,11 +249,12 @@ def view_companies(query):
         f'<td>{e(str(r["latest_notice_date"] or ""))}</td><td class="muted">{e((r["counties"] or "")[:40])}</td></tr>' for r in rows)
     weights = cached("weights", lambda: q("SELECT axis, label, explanation FROM analytics.score_weights ORDER BY axis, label"))
     wtxt = " | ".join(f'{w["axis"]}: {w["label"]} ({w["explanation"]})' for w in weights)
-    body = f"""<section><h2>Company risk {tip("Risk = mean of the conduct signals present for a company (0-1). Confidence = share of evidence pillars held (0-100). Grade blends both, the homelab model. Weights: " + wtxt)}</h2>
-<form method="get"><input name="q" value="{e(term)}" placeholder="Search company name"> <button>Search</button></form><br>
-<div class="scroll"><table><tr><th>Company</th><th class="n">Risk</th><th class="n">Confidence</th><th>Grade</th><th class="n">WARN notices</th>
-<th class="n">Employees affected</th><th>Latest notice</th><th>Counties</th></tr>{tr}</table></div>
-<p class="muted">Top 200 by risk. Companies come only from public WARN filings; other sources join by exact normalized name.</p></section>"""
+    heads = "".join(th(k) for k in SORTABLE)
+    hidden = f'<input type="hidden" name="sort" value="{e(sort)}"><input type="hidden" name="dir" value="{e(direction)}">'
+    body = f"""<section><h2>Company risk {tip("Risk = weighted mean of the conduct signals present for a company (0-1). Confidence = weighted share of evidence pillars held (0-100). The employer rating blends both (the homelab model). Click a column to sort. Measures: " + wtxt)}</h2>
+<form method="get" action="/"><input name="q" value="{e(term)}" placeholder="Search company name"> {hidden}<button>Search</button></form><br>
+<div class="scroll"><table><tr>{heads}</tr>{tr}</table></div>
+<p class="muted">{len(rows)} shown{" (top 300)" if len(rows) == 300 else ""}. Companies come only from public WARN filings; other sources join by exact normalized name.</p></section>"""
     return page("Company risk", body)
 
 
@@ -228,14 +275,39 @@ def view_company(cid):
                  f'<td>{e(x["address"] or "")}</td><td class="n">{num(x["employees_affected"])}</td>'
                  f'<td>{"<a href=\"" + e(x["source_url"]) + "\">source</a>" if x["source_url"] else ""}</td></tr>' for x in recs)
     body = f"""<section><h2>{e(r["company_name"] or "")} <span class="{grade_cls(r.get("goodness_grade"))}">{e(r.get("goodness_grade") or "")}</span></h2>
-<div class="stats"><div class="stat"><b>{num(r.get("risk_score"),2)}</b><span>risk</span></div><div class="stat"><b>{num(r.get("confidence_score"))}</b><span>confidence</span></div>
-<div class="stat"><b>{num(r.get("goodness_percent"))}%</b><span>goodness</span></div></div></section>
+<div class="stats"><div class="stat"><b>{num(r.get("risk_score"),2)}</b><span>risk {tip(EXPLAIN["risk"])}</span></div><div class="stat"><b>{num(r.get("confidence_score"))}</b><span>confidence {tip(EXPLAIN["confidence"])}</span></div>
+<div class="stat"><b>{num(r.get("goodness_percent"))}%</b><span>employer rating {tip(EXPLAIN["grade"])}</span></div></div></section>
 <section><h2>Why this score</h2><div class="scroll" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px">
 <table><tr><th>Risk signal</th><th class="n">Value (0-1)</th></tr>{rbr}</table>
 <table><tr><th>Evidence pillar</th><th>State</th></tr>{cbr}</table></div></section>
 <section><h2>Records</h2><div class="scroll"><table><tr><th>Type</th><th>Date</th><th>Detail</th><th>Address</th><th class="n">Employees</th><th></th></tr>{rr}</table></div></section>
 <section><h2>All published fields</h2><div class="scroll"><table>{facts}</table></div></section>"""
     return page(r["company_name"] or "Company", body)
+
+
+ARCH_SVG = (os.path.join(os.path.dirname(os.path.abspath(__file__)), "architecture.svg"))
+
+
+def view_architecture():
+    with open(ARCH_SVG) as f:
+        svg = f.read()
+    body = f"""<section><h2>Architecture</h2><div class="scroll">{svg}</div></section>
+<section><h2>How it works</h2><ul>
+<li><b>Edge.</b> Cloudflare holds the maxmccann.us zone and delegates <code>retool.maxmccann.us</code> to Azure DNS (DNS only, not proxied).
+Traffic goes straight to an Azure Application Gateway; certificates are Let's Encrypt via DNS-01 against Azure DNS.</li>
+<li><b>Compute.</b> AKS runs Retool prod, a Retool nonprod upgrade lane, this read-only dashboard, and one CronJob per public source.
+Every namespace runs at Pod Security "restricted"; containers are non-root with read-only root filesystems.</li>
+<li><b>Data.</b> Loaders write only rows that pass the publication filters into <code>jobs_ingest</code>. One analytics transaction rebuilds
+<code>jobs_analytics</code>, the only layer apps can read, as a read-only role with no access to the raw database.</li>
+<li><b>Secrets.</b> Key Vault is the root of trust; Infisical (private, no public route) gives each consumer its own identity,
+bound to one Kubernetes service account and readable only from its own folder.</li>
+<li><b>Sourcing rules.</b> One honest User-Agent with a contact; robots.txt read per host; a 401/403/429 is final and never worked around.</li>
+<li><b>Everything is Terraform,</b> built on Retool's official Azure modules.</li></ul></section>
+<section><h2>Vendor findings</h2><p>Reviewing every plan before applying it caught three defects in Retool's own Terraform modules, each patched in a vendored copy with the proof written down:</p><ol>
+<li><b>Key Vault access silently removed on the second apply</b>: inline access policies would have stripped Retool's access to its encryption key and database password.</li>
+<li><b>The nonprod lane was never routed</b>: the ingress controller was hard-wired to one namespace, which assumes one App Gateway per deployment.</li>
+<li><b>Every request returned 502 with nothing in the logs</b>: the ingress class and the controller name disagreed, and the controller overwrites one with the other at startup, so it claimed no ingress. Traced in the controller's source, proved live, then patched.</li></ol></section>"""
+    return page("Architecture", body)
 
 
 def view_sources():
@@ -253,6 +325,9 @@ def view_sources():
 
 
 class H(BaseHTTPRequestHandler):
+    server_version = "platform-dashboard"
+    sys_version = ""
+
     def log_message(self, fmt, *args):  # one line per request, no query strings
         print(f'{datetime.now(timezone.utc):%Y-%m-%dT%H:%M:%SZ} {self.command} {self.path.split("?")[0]} {args[1] if len(args) > 1 else ""}', flush=True)
 
@@ -272,10 +347,10 @@ class H(BaseHTTPRequestHandler):
         try:
             if u.path == "/healthz":
                 return self.send(200, "ok", "text/plain")
-            if u.path == "/":
-                return self.send(200, view_ingestion())
-            if u.path == "/companies":
+            if u.path in ("/", "/companies"):
                 return self.send(200, view_companies(urllib.parse.parse_qs(u.query)))
+            if u.path == "/ingestion":
+                return self.send(200, view_ingestion())
             if u.path.startswith("/company/"):
                 try:
                     cid = int(u.path.rsplit("/", 1)[1])
@@ -283,6 +358,8 @@ class H(BaseHTTPRequestHandler):
                     return self.send(404, page("Not found", "<section>Not found.</section>"))
                 body = view_company(cid)
                 return self.send(200 if body else 404, body or page("Not found", "<section>Not found.</section>"))
+            if u.path == "/architecture":
+                return self.send(200, view_architecture())
             if u.path == "/sources":
                 return self.send(200, view_sources())
             return self.send(404, page("Not found", "<section>Not found.</section>"))

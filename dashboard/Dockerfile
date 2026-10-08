@@ -3,7 +3,7 @@ RUN useradd --uid 10003 --create-home dash
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY app.py .
+COPY app.py architecture.svg ./
 RUN python -m py_compile app.py
 USER 10003
 EXPOSE 8080

@@ -1,0 +1,76 @@
+<svg class="arch" viewBox="0 0 940 400" role="img" aria-labelledby="archTitle archDesc">
+        <title id="archTitle">Platform architecture</title>
+        <desc id="archDesc">Visitors resolve maxmccann.us through Cloudflare. The write-up page is proxied by Cloudflare to GitHub Pages. The retool.maxmccann.us subdomain is delegated by Cloudflare to Azure DNS, so platform traffic goes directly to an Azure Application Gateway, which routes to Retool prod, Retool nonprod and a read-only dashboard on AKS. Ingest CronJobs load public sources into Postgres; secrets flow from Key Vault through Infisical.</desc>
+        <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#555"/></marker></defs>
+
+        <!-- edge: visitors + Cloudflare -->
+        <rect x="10" y="150" width="90" height="46" rx="6" fill="#fff" stroke="#999"/>
+        <text x="55" y="171" font-size="12" text-anchor="middle">Visitors</text>
+        <text x="55" y="187" font-size="10" text-anchor="middle" fill="#555">public web</text>
+
+        <rect x="130" y="40" width="150" height="290" rx="8" fill="#fff4ea" stroke="#f38020"/>
+        <text x="205" y="62" font-size="13" text-anchor="middle" font-weight="bold">Cloudflare</text>
+        <text x="205" y="78" font-size="10" text-anchor="middle" fill="#555">maxmccann.us zone</text>
+        <rect x="142" y="92" width="126" height="60" rx="5" fill="#fff" stroke="#f38020"/>
+        <text x="205" y="112" font-size="11" text-anchor="middle">Proxy + TLS</text>
+        <text x="205" y="127" font-size="10" text-anchor="middle" fill="#555">maxmccann.us</text>
+        <text x="205" y="141" font-size="10" text-anchor="middle" fill="#555">to GitHub Pages</text>
+        <rect x="142" y="190" width="126" height="76" rx="5" fill="#fff" stroke="#f38020" stroke-dasharray="4 3"/>
+        <text x="205" y="210" font-size="11" text-anchor="middle">NS delegation</text>
+        <text x="205" y="225" font-size="10" text-anchor="middle" fill="#555">retool.maxmccann.us</text>
+        <text x="205" y="240" font-size="10" text-anchor="middle" fill="#555">to Azure DNS</text>
+        <text x="205" y="255" font-size="10" text-anchor="middle" fill="#555">(DNS only, not proxied)</text>
+        <text x="205" y="300" font-size="10" text-anchor="middle" fill="#555">Records in Terraform</text>
+        <text x="205" y="314" font-size="10" text-anchor="middle" fill="#555">(dns repo)</text>
+        <line x1="100" y1="165" x2="140" y2="125" stroke="#555" marker-end="url(#ar)"/>
+        <line x1="100" y1="182" x2="140" y2="225" stroke="#555" marker-end="url(#ar)"/>
+
+        <!-- Azure -->
+        <rect x="300" y="10" width="630" height="380" rx="10" fill="#fff" stroke="#bbb"/>
+        <text x="314" y="30" font-size="12" fill="#555">Azure: VNet with private subnets, NAT egress, AKS API allowlisted</text>
+
+        <rect x="314" y="185" width="110" height="60" rx="6" fill="#e8f1fc" stroke="#0073e6"/>
+        <text x="369" y="208" font-size="12" text-anchor="middle">App Gateway</text>
+        <text x="369" y="224" font-size="10" text-anchor="middle" fill="#555">Let's Encrypt TLS</text>
+        <text x="369" y="237" font-size="10" text-anchor="middle" fill="#555">(DNS-01, Azure DNS)</text>
+        <line x1="268" y1="228" x2="312" y2="215" stroke="#555" marker-end="url(#ar)"/>
+
+        <rect x="450" y="45" width="210" height="300" rx="8" fill="#f7f7f7" stroke="#999"/>
+        <text x="555" y="64" font-size="12" text-anchor="middle" fill="#555">AKS</text>
+        <rect x="465" y="76" width="180" height="36" rx="5" fill="#fff" stroke="#0073e6"/>
+        <text x="555" y="98" font-size="11" text-anchor="middle">Retool prod</text>
+        <rect x="465" y="120" width="180" height="36" rx="5" fill="#fff" stroke="#0073e6" stroke-dasharray="4 3"/>
+        <text x="555" y="142" font-size="11" text-anchor="middle">Retool nonprod (upgrade lane)</text>
+        <rect x="465" y="164" width="180" height="40" rx="5" fill="#fff" stroke="#0073e6"/>
+        <text x="555" y="182" font-size="11" text-anchor="middle">Read-only dashboard</text>
+        <text x="555" y="196" font-size="10" text-anchor="middle" fill="#555">demo.retool.maxmccann.us</text>
+        <rect x="465" y="212" width="180" height="56" rx="5" fill="#fff" stroke="#1a6b2a"/>
+        <text x="555" y="232" font-size="11" text-anchor="middle">Ingest CronJobs</text>
+        <text x="555" y="247" font-size="10" text-anchor="middle" fill="#555">one pod per public source,</text>
+        <text x="555" y="260" font-size="10" text-anchor="middle" fill="#555">honest User-Agent</text>
+        <rect x="465" y="276" width="180" height="56" rx="5" fill="#fff8e6" stroke="#8a5a00"/>
+        <text x="555" y="298" font-size="11" text-anchor="middle">Infisical (private)</text>
+        <text x="555" y="313" font-size="10" text-anchor="middle" fill="#555">per-namespace identities</text>
+        <line x1="424" y1="205" x2="463" y2="96" stroke="#555" marker-end="url(#ar)"/>
+        <line x1="424" y1="212" x2="463" y2="140" stroke="#555" marker-end="url(#ar)"/>
+        <line x1="424" y1="218" x2="463" y2="184" stroke="#555" marker-end="url(#ar)"/>
+
+        <rect x="690" y="70" width="225" height="70" rx="6" fill="#fff" stroke="#999"/>
+        <text x="802" y="92" font-size="12" text-anchor="middle">Postgres (Retool)</text>
+        <text x="802" y="110" font-size="10" text-anchor="middle" fill="#555">prod, nonprod, Infisical databases</text>
+        <rect x="690" y="165" width="225" height="90" rx="6" fill="#fff" stroke="#1a6b2a"/>
+        <text x="802" y="187" font-size="12" text-anchor="middle">Postgres (public data)</text>
+        <text x="802" y="205" font-size="10" text-anchor="middle" fill="#555">jobs_ingest: raw, loaders only</text>
+        <text x="802" y="220" font-size="10" text-anchor="middle" fill="#555">jobs_analytics: published,</text>
+        <text x="802" y="234" font-size="10" text-anchor="middle" fill="#555">read-only role for apps</text>
+        <rect x="690" y="280" width="225" height="52" rx="6" fill="#fff8e6" stroke="#8a5a00"/>
+        <text x="802" y="302" font-size="12" text-anchor="middle">Key Vault</text>
+        <text x="802" y="318" font-size="10" text-anchor="middle" fill="#555">root of trust</text>
+
+        <line x1="645" y1="110" x2="688" y2="105" stroke="#555" marker-end="url(#ar)"/>
+        <line x1="645" y1="186" x2="688" y2="205" stroke="#555" marker-end="url(#ar)"/>
+        <line x1="645" y1="240" x2="688" y2="220" stroke="#555" marker-end="url(#ar)"/>
+        <line x1="690" y1="305" x2="647" y2="305" stroke="#8a5a00" marker-end="url(#ar)"/>
+        <text x="314" y="365" font-size="10" fill="#555">Apps read only jobs_analytics as a read-only role: no CONNECT on raw, writes refused. Infisical and the admin planes have no public route.</text>
+        <text x="314" y="380" font-size="10" fill="#555">All of it is Terraform: Retool's official Azure modules plus this platform's own, with three upstream bugs patched and documented.</text>
+    </svg>
