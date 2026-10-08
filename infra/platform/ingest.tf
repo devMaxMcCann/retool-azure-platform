@@ -133,6 +133,11 @@ resource "kubernetes_cron_job_v1" "ingest" {
                   limits   = { memory = "128Mi" }
                 }
                 security_context {
+                  # Repeated from the pod level on purpose: the provider sends
+                  # runAsNonRoot=false for a container block that omits it, and
+                  # Pod Security "restricted" then rejects the pod (see data.tf).
+                  run_as_non_root            = true
+                  run_as_user                = 10001
                   allow_privilege_escalation = false
                   read_only_root_filesystem  = true
                   capabilities { drop = ["ALL"] }
@@ -159,6 +164,11 @@ resource "kubernetes_cron_job_v1" "ingest" {
                 limits   = { memory = each.value.mem }
               }
               security_context {
+                # Repeated from the pod level on purpose: the provider sends
+                # runAsNonRoot=false for a container block that omits it, and
+                # Pod Security "restricted" then rejects the pod (see data.tf).
+                run_as_non_root            = true
+                run_as_user                = 10001
                 allow_privilege_escalation = false
                 read_only_root_filesystem  = true
                 capabilities { drop = ["ALL"] }
