@@ -56,7 +56,9 @@ infisical-ui:     ## private UI at http://localhost:8080
 # credentials are read from the macOS Keychain into the environment for this
 # one command only; they are never written to a file.
 STF        := terraform -chdir=infra/secrets
-INF_CREDS   = $$(security find-generic-password -a claude-code -s infisical-azure-admin -w)
+KEYCHAIN_SERVICE ?= infisical-terraform
+KEYCHAIN_ACCOUNT ?= $(USER)
+INF_CREDS   = $$(security find-generic-password -a $(KEYCHAIN_ACCOUNT) -s $(KEYCHAIN_SERVICE) -w)
 INF_ENV     = INFISICAL_UNIVERSAL_AUTH_CLIENT_ID=$$(echo "$(INF_CREDS)" | python3 -c 'import json,sys;print(json.load(sys.stdin)["clientId"])') \
               INFISICAL_UNIVERSAL_AUTH_CLIENT_SECRET=$$(echo "$(INF_CREDS)" | python3 -c 'import json,sys;print(json.load(sys.stdin)["clientSecret"])')
 

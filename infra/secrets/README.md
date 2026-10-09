@@ -20,9 +20,14 @@ purpose), and identity creation needs an admin session.
    ```
 4. Access Control → Machine Identities → **Create Identity**: name `terraform`,
    org role **Admin**, auth method **Universal Auth**. Create a client secret and
-   hand the Client ID and Client Secret to Claude **once**. Claude stores them in
-   the Keychain (service `infisical-azure-admin`, account `claude-code`); nothing
-   else reads them.
+   store the Client ID and Client Secret in the macOS Keychain as one JSON value,
+   so they never sit in a file or shell history:
+   ```bash
+   security add-generic-password -a "$USER" -s infisical-terraform \
+     -w '{"clientId":"...","clientSecret":"..."}'
+   ```
+   The Makefile reads them from there for each `secrets-*` run
+   (override with `KEYCHAIN_SERVICE=` / `KEYCHAIN_ACCOUNT=`).
 
 ## Every run
 
