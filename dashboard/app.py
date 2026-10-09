@@ -414,6 +414,84 @@ def view_sources():
     return page("Sources", body)
 
 
+# ---------------------------------------------------------------- JSON API
+# Read-only, same published data as the pages. Consumed by the Retool Cloud
+# app/workflow (Retool runs REST queries server-side, so no CORS is needed).
+
+def _jsonable(v):
+    import decimal
+    from datetime import date
+    if isinstance(v, decimal.Decimal):
+        return float(v)
+    if isinstance(v, (datetime, date)):
+        return v.isoformat()
+    return v
+
+
+def _rows(rows):
+    return [{k: _jsonable(v) for k, v in r.items()} for r in rows]
+
+
+API_COLUMNS = ("company_id, company_name, counties, naics, risk_score, confidence_score, employer_rating_score, "
+               "employer_rating, n_warn_events, employees_affected_total, first_notice_date, latest_notice_date")
+
+
+def api_companies(query):
+    term = (query.get("q") or [""])[0].strip()
+    sort = (query.get("sort") or ["employees"])[0]
+    if sort not in SORTABLE:
+        sort = "employees"
+    col, _, _, d = SORTABLE[sort]
+    direction = (query.get("dir") or [d])[0]
+    if direction not in ("asc", "desc"):
+        direction = d
+    try:
+        limit = max(1, min(int((query.get("limit") or ["1000"])[0]), 1000))
+    except ValueError:
+        limit = 1000
+    rows = q(f"SELECT {API_COLUMNS} FROM analytics.company_rollup "
+             + ("WHERE company_name ILIKE %s " if term else "")
+             + f"ORDER BY {col} {direction.upper()} NULLS LAST, company_id LIMIT {limit}",
+             (f"%{term}%",) if term else ())
+    return {"count": len(rows), "sort": sort, "dir": direction, "companies": _rows(rows)}
+
+
+def api_company(cid):
+    r = q("SELECT * FROM analytics.company_rollup WHERE company_id = %s", (cid,))
+    if not r:
+        return None
+    s = q("SELECT risk_breakdown, confidence_breakdown FROM analytics.company_scores WHERE company_id = %s", (cid,))
+    recs = q("SELECT record_type, record_date, detail, address, county, employees_affected, source_url "
+             "FROM analytics.records WHERE company_id = %s ORDER BY record_date DESC NULLS LAST LIMIT 200", (cid,))
+    return {"company": _rows(r)[0],
+            "risk_breakdown": s[0]["risk_breakdown"] if s else {},
+            "confidence_breakdown": s[0]["confidence_breakdown"] if s else {},
+            "records": _rows(recs)}
+
+
+def api_feeds():
+    live = cached("live", live_jobs)
+    fresh = {r["source"]: r for r in cached("fresh", lambda: q(
+        "SELECT source, publisher, licence_status, last_success, rows_written, last_status, last_attempt, last_error "
+        "FROM analytics.source_freshness ORDER BY source"))}
+    catalog = {c["source"]: c for c in cached("catalog", lambda: q(
+        "SELECT source, publisher, url, licence_status FROM analytics.source_catalog"))}
+    out = []
+    for c in live["cronjobs"]:
+        key = c["step"].replace("-", "_")
+        cat, fr = catalog.get(key, {}), fresh.get(key, {})
+        nxt = None if c["suspended"] else cron_next(c["schedule"])
+        out.append({"feed": c["step"], "source": key,
+                    "publisher": cat.get("publisher") or ("Analytics build" if key == "analytics" else None),
+                    "url": cat.get("url"), "licence_status": cat.get("licence_status"),
+                    "schedule_cron": c["schedule"], "schedule": cron_human(c["schedule"]),
+                    "suspended": c["suspended"], "next_run": _jsonable(nxt),
+                    "last_job": c["last_job"], "last_status": fr.get("last_status"),
+                    "last_success": _jsonable(fr.get("last_success")), "rows_written": fr.get("rows_written"),
+                    "last_error": fr.get("last_error")})
+    return {"kubernetes_error": live["error"], "running_pods": len(live["running"]), "feeds": out}
+
+
 class H(BaseHTTPRequestHandler):
     server_version = "platform-dashboard"
     sys_version = ""
@@ -432,9 +510,23 @@ class H(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b)
 
+    def send_json(self, code, obj):
+        self.send(code, json.dumps(obj, default=str), "application/json")
+
     def do_GET(self):
         u = urllib.parse.urlparse(self.path)
         try:
+            if u.path == "/api/companies":
+                return self.send_json(200, api_companies(urllib.parse.parse_qs(u.query)))
+            if u.path.startswith("/api/company/"):
+                try:
+                    cid = int(u.path.rsplit("/", 1)[1])
+                except ValueError:
+                    return self.send_json(404, {"error": "not found"})
+                body = api_company(cid)
+                return self.send_json(200 if body else 404, body or {"error": "not found"})
+            if u.path == "/api/feeds":
+                return self.send_json(200, api_feeds())
             if u.path == "/healthz":
                 return self.send(200, "ok", "text/plain")
             if u.path in ("/", "/companies"):
