@@ -10,6 +10,7 @@ Two data sources, both read-only by construction:
 Generic on purpose: risk/confidence signals are rendered from the jsonb
 breakdowns, so a new source in analytics.sql shows up without a code change.
 """
+import decimal
 import html
 import json
 import os
@@ -149,7 +150,7 @@ CSS = """
 :root{--ink:#222;--muted:#666;--line:#e2e2e2;--blue:#0073e6;--card:#f6f7f9;--ok:#1a6b2a;--warn:#8a5a00;--bad:#a01818}
 *{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;color:var(--ink);background:#fff;line-height:1.5}
 header{background:var(--blue);color:#fff;padding:14px 20px}header h1{margin:0;font-size:1.3rem}
-header nav a{color:#fff;margin-right:16px;text-decoration:none;font-size:.92rem}header p{margin:2px 0 6px;font-size:.88rem;opacity:.9}
+header h1{margin-bottom:6px}header nav a{color:#fff;margin-right:16px;text-decoration:none;font-size:.92rem}header p{margin:2px 0 6px;font-size:.88rem;opacity:.9}
 main{max-width:none;margin:0 auto;padding:16px 24px}section{background:var(--card);border-radius:8px;padding:14px 16px;margin-bottom:16px}
 h2{margin:0 0 8px;font-size:1.1rem}table{width:100%;border-collapse:collapse;background:#fff;font-size:.88rem}
 th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#eef0f3;font-weight:600}
@@ -192,9 +193,25 @@ def page(title, body, refresh=None):
     b = built[0]["b"].strftime("%Y-%m-%d %H:%M UTC") if built and built[0]["b"] else "never"
     return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 {meta}<title>{e(title)} | Public-data platform</title><style>{CSS}</style></head><body>
-<header><h1>Public-data platform</h1><p>Azure AKS ingestion pods &rarr; Postgres &rarr; published analytics. Read-only view.</p>
-<nav><a href="/">Company risk</a><a href="/ingestion">Ingestion</a><a href="/sources">Sources</a><a href="/architecture">Architecture</a></nav></header>
+<header><h1>Public-data platform</h1>
+<nav><a href="/">Company risk</a><a href="/ingestion">Ingestion</a><a href="/sources">Sources</a><a href="/architecture">Architecture</a><a href="https://github.com/devMaxMcCann/retool-azure-platform">Source on GitHub</a></nav></header>
 <main>{body}</main><footer>Analytics last built {e(b)} &middot; reads only the published layer as a read-only role</footer></body></html>"""
+
+
+ID_KEYS = ("cert", "usdot", "ein", "cik", "zip", "naics", "year", "_id")
+
+
+def fact_val(k, v):
+    """Published field for display: numerics without Postgres' trailing zeros
+    (44.00000000000000000020 -> 44), at most 2 decimals, no thousands separator
+    on identifiers (FDIC cert, USDOT, EIN); everything else as text."""
+    if isinstance(v, bool):
+        return "yes" if v else "no"
+    if isinstance(v, (int, float, decimal.Decimal)):
+        if any(s in k for s in ID_KEYS):
+            return str(int(v)) if float(v) == int(v) else str(v)
+        return f"{float(v):,.0f}" if float(v) == round(float(v)) or abs(float(v) - round(float(v))) < 1e-9 else f"{float(v):,.2f}".rstrip("0").rstrip(".")
+    return str(v)
 
 
 def grade_cls(g):
@@ -354,7 +371,7 @@ def view_company(cid):
     rb, cb = (s[0]["risk_breakdown"], s[0]["confidence_breakdown"]) if s else ({}, {})
     rbr = "".join(f'<tr><td>{e(k)}</td><td class="n">{num(v, 2) if v is not None else "<span class=\"muted\">no data</span>"}</td></tr>' for k, v in rb.items())
     cbr = "".join(f'<tr><td>{e(k)}</td><td>{"<span class=\"pill ok\">held</span>" if v else "<span class=\"pill warn\">missing</span>"}</td></tr>' for k, v in cb.items())
-    facts = "".join(f'<tr><td>{e(FIELD_LABELS.get(k, k.replace("_", " ").capitalize()))}</td><td>{e(str(v))}</td></tr>' for k, v in r.items()
+    facts = "".join(f'<tr><td>{e(FIELD_LABELS.get(k, k.replace("_", " ").capitalize()))}</td><td>{e(fact_val(k, v))}</td></tr>' for k, v in r.items()
                     if v not in (None, "") and k not in ("company_id",))
     recs = q("SELECT record_type, record_date, detail, address, county, employees_affected, source_url "
              "FROM analytics.records WHERE company_id = %s ORDER BY record_date DESC NULLS LAST LIMIT 100", (cid,))
@@ -422,7 +439,9 @@ def _jsonable(v):
     import decimal
     from datetime import date
     if isinstance(v, decimal.Decimal):
-        return float(v)
+        v = float(v)
+    if isinstance(v, float):
+        return round(v, 4)
     if isinstance(v, (datetime, date)):
         return v.isoformat()
     return v
