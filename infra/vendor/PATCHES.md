@@ -1,5 +1,12 @@
 # Vendored modules
 
+Retool's blueprint repository publishes no licence, so its module code is not
+stored here. `make vendor` (`vendor_modules.py`) downloads the exact release
+Terraform resolves for 0.5.2 (`tryretool/terraform-retool-self-hosted-blueprints`
+@ `27e541f`), copies `azure-vnet` and `azure-user-ingress` into this folder
+(gitignored), and applies the patches below. Each patch is anchored; if
+upstream changes an anchor, the script stops rather than patching blind.
+
 ## azure-vnet (tryretool/self-hosted-blueprints 0.5.2)
 
 Copied verbatim from the registry release, then two `lifecycle` blocks added

@@ -5,8 +5,11 @@ ENV     ?= demo
 RG      ?= rtl-platform
 AKS     ?= rtl-aks
 
-.PHONY: login bootstrap init plan apply stop start status infisical-ui kubeconfig destroy \
+.PHONY: vendor login bootstrap init plan apply stop start status infisical-ui kubeconfig destroy \
         secrets-init secrets-plan secrets-apply ingest-image dashboard-image ingest-run ingest-status
+
+vendor:           ## fetch Retool's released Azure modules + apply our patches (infra/vendor/PATCHES.md)
+	python3 infra/vendor/vendor_modules.py
 
 login:            ## az login (interactive, once per session)
 	az login --only-show-errors >/dev/null && az account show --query "{sub:id,name:name,user:user.name}" -o table
@@ -15,7 +18,7 @@ bootstrap:        ## one-time: state storage account
 	terraform -chdir=infra/bootstrap init -input=false
 	terraform -chdir=infra/bootstrap apply
 
-init:
+init: vendor
 	$(TF) init -input=false -backend-config=envs/$(ENV).backend.hcl
 
 plan:

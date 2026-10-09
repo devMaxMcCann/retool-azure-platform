@@ -220,8 +220,9 @@ CREATE INDEX ON analytics.fed_enforcement_actions (company_id);
 --                measures that have a finding (a source with nothing to say
 --                drops out instead of counting as zero, homelab scoring.py)
 --   confidence = weighted share of confidence pillars held (0..100)
---   employer_rating_score = 100 - (1 - confidence)*40 - risk*60 (homelab common.goodness_nines),
---   banded into employer_rating A+..F. (Homelab calls these employer_rating_score/employer_rating.)
+--   employer_rating_score = 100 - risk*60 - (100 - confidence)*0.1, banded A+ 90 / A 80 / B 70 / C 60 / D 50.
+--   Gentler than the homelab model (which charges up to 40 points for missing evidence): every company here
+--   is a WARN filer, and "little public data found" must not read as "bad employer". WARN alone caps at 0.5 risk.
 -- Every company is a WARN filer, so every company carries the WARN risk
 -- signal: this registry is "employers that filed layoff notices", by design.
 -- Measure names follow the homelab's (warn_act -> warn, identity_ein,

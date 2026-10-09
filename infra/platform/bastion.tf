@@ -25,6 +25,12 @@ variable "retool_cloud_cidrs" {
   description = "Retool Cloud egress for us-west-2, from the org's resource form (Allowlist IPs) and docs.retool.com ip-allowlist-cloud-orgs, 2026-10-08."
 }
 
+variable "bastion_admin_public_key" {
+  type        = string
+  default     = null
+  description = "Break-glass admin SSH public key for the bastion VM (only used when the bastion is enabled). Admin normally goes through `az vm run-command`."
+}
+
 locals {
   bastion        = var.enable_retool_cloud_bastion ? 1 : 0
   retool_pub_key = trimspace(file("${path.module}/files/retool-cloud.pub"))
@@ -114,7 +120,7 @@ resource "azurerm_linux_virtual_machine" "bastion" {
 
   admin_ssh_key {
     username   = "azureadmin"
-    public_key = file("${path.module}/files/bastion-admin.pub")
+    public_key = var.bastion_admin_public_key
   }
 
   os_disk {
