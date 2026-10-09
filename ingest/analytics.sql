@@ -228,9 +228,10 @@ CREATE INDEX ON analytics.fed_enforcement_actions (company_id);
 -- sec_filing_data) or its source table names (ftc_cases, fed_enforcement).
 DROP TABLE IF EXISTS analytics.score_weights;
 CREATE TABLE analytics.score_weights (axis text, measure text, label text, scale_n numeric, explanation text,
-                                      weight numeric NOT NULL DEFAULT 1);
+                                      weight numeric NOT NULL DEFAULT 1,
+                                      cap numeric NOT NULL DEFAULT 1);
 INSERT INTO analytics.score_weights (axis, measure, label, scale_n, explanation) VALUES
- ('risk', 'warn', 'WARN notices', 3, 'min(notices / 3, 1)'),
+ ('risk', 'warn', 'WARN notices', 3, 'min(notices / 3, 0.5): a WARN notice is the employer complying with the law, so on its own it can never push risk past 0.5'),
  ('risk', 'osha', 'OSHA severe injury reports', 5, 'min(reports / 5, 1)'),
  ('risk', 'msha', 'MSHA significant & substantial violations', 10, 'min(S&S violations / 10, 1)'),
  ('risk', 'sec_item205', 'SEC 8-K Item 2.05 (exit or disposal costs)', 2,
@@ -252,6 +253,7 @@ INSERT INTO analytics.score_weights (axis, measure, label, scale_n, explanation)
   'USAspending award whose recipient name matches exactly'),
  ('confidence', 'regulated_entity', 'Federal registry entry', NULL,
   'FDIC-insured institution, CMS-rated hospital or FMCSA-registered carrier with this exact name');
+UPDATE analytics.score_weights SET cap = 0.5 WHERE axis = 'risk' AND measure = 'warn';
 
 -- One row per (company, measure) that has a finding; n is the raw count.
 DROP TABLE IF EXISTS analytics.company_signals;
@@ -283,18 +285,18 @@ CREATE INDEX ON analytics.company_signals (company_id);
 DROP TABLE IF EXISTS analytics.company_scores;
 CREATE TABLE analytics.company_scores AS
 WITH grid AS (
-    SELECT c.company_id, w.axis, w.measure, w.weight, w.scale_n, s.n
+    SELECT c.company_id, w.axis, w.measure, w.weight, w.scale_n, w.cap, s.n
       FROM analytics.companies c
      CROSS JOIN analytics.score_weights w
       LEFT JOIN analytics.company_signals s
         ON s.company_id = c.company_id AND s.measure = w.measure AND s.n > 0
 ), agg AS (
     SELECT company_id,
-           sum(weight * least(n / scale_n, 1)) FILTER (WHERE axis = 'risk' AND n IS NOT NULL)
+           sum(weight * least(n / scale_n, cap)) FILTER (WHERE axis = 'risk' AND n IS NOT NULL)
              / nullif(sum(weight) FILTER (WHERE axis = 'risk' AND n IS NOT NULL), 0)             AS risk_score,
            100.0 * coalesce(sum(weight) FILTER (WHERE axis = 'confidence' AND n IS NOT NULL), 0)
              / nullif(sum(weight) FILTER (WHERE axis = 'confidence'), 0)                          AS confidence_score,
-           jsonb_object_agg(measure, CASE WHEN n IS NOT NULL THEN round(least(n / scale_n, 1), 4) END)
+           jsonb_object_agg(measure, CASE WHEN n IS NOT NULL THEN round(least(n / scale_n, cap), 4) END)
              FILTER (WHERE axis = 'risk')                                                         AS risk_breakdown,
            jsonb_object_agg(measure, n IS NOT NULL) FILTER (WHERE axis = 'confidence')            AS confidence_breakdown
       FROM grid GROUP BY company_id

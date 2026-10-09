@@ -260,7 +260,8 @@ def view_ingestion():
 EXPLAIN = {
     "risk": ("How much adverse public record we found, 0 to 1: a weighted average of the conduct signals "
              "present (WARN layoff notices, MSHA safety violations, OSHA severe injuries, SEC 8-K Item 2.05 "
-             "restructuring filings, FTC cases, Federal Reserve enforcement actions). 0 = none found. Higher is worse."),
+             "restructuring filings, FTC cases, Federal Reserve enforcement actions). WARN notices alone can contribute "
+             "at most 0.5: filing one is the employer complying with the law. 0 = none found. Higher is worse."),
     "confidence": ("How much independent public evidence identifies this company, 0 to 100: licences, an EIN, "
                    "SEC filings, a geocoded address, federal awards, registry entries. Low means we know little, "
                    "not that the company is bad."),
@@ -284,9 +285,9 @@ SORTABLE = {
 
 def view_companies(query):
     term = (query.get("q") or [""])[0].strip()
-    sort = (query.get("sort") or ["risk"])[0]
+    sort = (query.get("sort") or ["employees"])[0]
     if sort not in SORTABLE:
-        sort = "risk"
+        sort = "employees"
     col, _, _, default_dir = SORTABLE[sort]
     direction = (query.get("dir") or [default_dir])[0]
     if direction not in ("asc", "desc"):
@@ -321,7 +322,7 @@ def view_companies(query):
     body = f"""<section><h2>Company risk {tip("Risk = weighted mean of the conduct signals present for a company (0-1). Confidence = weighted share of evidence pillars held (0-100). The employer rating blends both (the homelab model). Click a column to sort. Measures: " + wtxt)}</h2>
 <form method="get" action="/"><input name="q" value="{e(term)}" placeholder="Search company name"> {hidden}<button>Search</button></form><br>
 <div class="scroll"><table><tr>{heads}</tr>{tr}</table></div>
-<p class="muted">{len(rows)} shown{" (top 300)" if len(rows) == 300 else ""}. Companies come only from public WARN filings; other sources join by exact normalized name.</p></section>"""
+<p class="muted">{len(rows)} shown{" (top 300)" if len(rows) == 300 else ""}, sorted by {e(SORTABLE[sort][1].lower())}. Companies come only from public WARN filings; other sources join by exact normalized name.</p></section>"""
     return page("Company risk", body)
 
 
