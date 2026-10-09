@@ -1,0 +1,600 @@
+# Publication decisions per table. Private source-system tables are summarised in the first entry.
+- table: '(private source-system tables: 30)'
+  class: private-exclude
+  target_db: none
+  source_module: null
+  publisher: null
+  license: null
+  license_url: null
+  license_status: null
+  drop_columns: []
+  row_filter: null
+  decision: exclude
+  reason: The source system's own records (private activity, review queues, scoring configuration, audit/operational logs)
+    and tables derived from them. Never copied; the public build ingests sources fresh and rebuilds analytics from published
+    inputs only.
+  compliance_registry_id: null
+- table: bls_jolts_snapshot
+  class: public-raw
+  target_db: ingest
+  source_module: sources/bls_jolts.py
+  publisher: U.S. Bureau of Labor Statistics
+  license: Public domain (BLS copyright page); citation requested
+  license_url: https://www.bls.gov/opub/copyright-information.htm
+  license_status: verified
+  drop_columns: []
+  row_filter: null
+  decision: publish
+  reason: National aggregates; BLS says its material is public domain.
+  compliance_registry_id: null
+- table: bls_local_labor_laus
+  class: public-raw
+  target_db: ingest
+  source_module: sources/bls_local_labor.py
+  publisher: U.S. Bureau of Labor Statistics
+  license: Public domain (BLS copyright page); citation requested
+  license_url: https://www.bls.gov/opub/copyright-information.htm
+  license_status: verified
+  drop_columns: []
+  row_filter: null
+  decision: publish
+  reason: Area aggregates; BLS public domain.
+  compliance_registry_id: null
+- table: bls_local_labor_qcew
+  class: public-raw
+  target_db: ingest
+  source_module: sources/bls_local_labor.py
+  publisher: U.S. Bureau of Labor Statistics
+  license: Public domain (BLS copyright page); citation requested
+  license_url: https://www.bls.gov/opub/copyright-information.htm
+  license_status: verified
+  drop_columns: []
+  row_filter: null
+  decision: publish
+  reason: County aggregates; BLS public domain.
+  compliance_registry_id: null
+- table: dol_lca_employers
+  class: public-raw
+  target_db: ingest
+  source_module: ingest_dol_lca.py
+  publisher: U.S. Department of Labor (ETA OFLC)
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns: []
+  row_filter: employer_name ~* '\m(inc|incorporated|llc|l\.l\.c|corp|corporation|company|co|ltd|limited|lp|llp|lllp|pllc|pc|p\.c|nfp|foundation|association|assn|bank|n\.a|university|college|hospital|church|district|authority|partners|partnership|holdings|group)\M'
+  decision: publish-filtered
+  reason: DOL public domain. Some employers are natural persons (e.g. a solo medical practice), so keep entity-suffixed names
+    only.
+  compliance_registry_id: null
+- table: dol_perm_employers
+  class: public-raw
+  target_db: ingest
+  source_module: ingest_dol_perm.py
+  publisher: U.S. Department of Labor (ETA OFLC)
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns: []
+  row_filter: employer_name ~* '\m(inc|incorporated|llc|l\.l\.c|corp|corporation|company|co|ltd|limited|lp|llp|lllp|pllc|pc|p\.c|nfp|foundation|association|assn|bank|n\.a|university|college|hospital|church|district|authority|partners|partnership|holdings|group)\M'
+  decision: publish-filtered
+  reason: DOL public domain. PERM includes private-household employers (individuals), so keep entities only.
+  compliance_registry_id: null
+- table: msha_violations_employers
+  class: public-raw
+  target_db: ingest
+  source_module: ingest_msha_violations.py
+  publisher: U.S. Department of Labor - MSHA
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns:
+  - latest_controller_name
+  row_filter: violator_name ~* '\m(inc|incorporated|llc|l\.l\.c|corp|corporation|company|co|ltd|limited|lp|llp|lllp|pllc|pc|p\.c|nfp|foundation|association|assn|bank|n\.a|university|college|hospital|church|district|authority|partners|partnership|holdings|group)\M'
+  decision: publish-filtered
+  reason: 'DOL/MSHA public domain. Violators and controllers can be individuals: drop the controller name and keep entity
+    violators only.'
+  compliance_registry_id: null
+- table: sba_ppp_employers
+  class: public-raw
+  target_db: ingest
+  source_module: ingest_sba_ppp.py
+  publisher: U.S. Small Business Administration
+  license: U.S. Government Works (dataset license field on data.sba.gov)
+  license_url: https://data.sba.gov/dataset/ppp-foia
+  license_status: verified
+  drop_columns: []
+  row_filter: (latest_business_type IS NULL OR latest_business_type NOT IN ('Sole Proprietorship','Self-Employed Individuals','Independent
+    Contractors','Single Member LLC')) AND borrower_name ~* '\m(inc|incorporated|llc|l\.l\.c|corp|corporation|company|co|ltd|limited|lp|llp|lllp|pllc|pc|p\.c|nfp|foundation|association|assn|bank|n\.a|university|college|hospital|church|district|authority|partners|partnership|holdings|group)\M'
+  decision: publish-filtered
+  reason: U.S. Government Works. Sole props / self-employed borrowers are natural persons.
+  compliance_registry_id: null
+- table: chicago_business_licenses
+  class: public-raw
+  target_db: ingest
+  source_module: sources/chicago_business_licenses.py + ingest_business_licenses.py
+  publisher: City of Chicago (data.cityofchicago.org)
+  license: City of Chicago Data Terms of Use (redistribution permitted; mandatory disclaimer on derivative apps; City may
+    require takedown)
+  license_url: https://www.chicago.gov/city/en/narr/foia/data_disclaimer.html
+  license_status: verified
+  drop_columns:
+  - property_owner_reference
+  - verified_address
+  - verified_pin
+  - address_verified_at
+  row_filter: license_description NOT IN ('Home Occupation','Peddler License','Home Repair') AND legal_name ~* '\m(inc|incorporated|llc|l\.l\.c|corp|corporation|company|co|ltd|limited|lp|llp|lllp|pllc|pc|p\.c|nfp|foundation|association|assn|bank|n\.a|university|college|hospital|church|district|authority|partners|partnership|holdings|group)\M'
+  decision: publish-filtered
+  reason: City terms allow derivative apps with a mandatory disclaimer. legal_name is a person's name for sole proprietors,
+    and home-occupation/peddler licences give home addresses. verified_* comes from Cook County (no reuse grant) and owner
+    names.
+  compliance_registry_id: null
+- table: idfpr_licenses
+  class: public-raw
+  target_db: ingest
+  source_module: sources/idfpr_licenses.py + ingest_idfpr_licenses.py
+  publisher: Illinois Dept. of Financial and Professional Regulation (via Illinois open data, illinois-edp.data.socrata.com)
+  license: ODbL 1.0 (dataset metadata licenseId=ODBL; attribution + share-alike on derived databases)
+  license_url: https://opendatacommons.org/licenses/odbl/1-0/
+  license_status: verified
+  drop_columns: []
+  row_filter: business_name ~* '\m(inc|incorporated|llc|l\.l\.c|corp|corporation|company|co|ltd|limited|lp|llp|lllp|pllc|pc|p\.c|nfp|foundation|association|assn|bank|n\.a|university|college|hospital|church|district|authority|partners|partnership|holdings|group)\M'
+  decision: publish-filtered
+  reason: ODbL, so attribution is required and derived DBs are share-alike. business='Y' rows can still be a person's name,
+    so keep entities only. Has no street address.
+  compliance_registry_id: null
+- table: commercial_parcels
+  class: public-raw
+  target_db: none
+  source_module: sources/cook_county_parcels.py + ingest_parcels.py
+  publisher: Cook County Assessor / Cook County GIS (datacatalog.cookcountyil.gov, gis.cookcountyil.gov)
+  license: 'Cook County Terms of Use: content copyrighted, no reuse grant; dataset metadata license=null'
+  license_url: https://www.cookcountyil.gov/terms-use
+  license_status: verified
+  drop_columns:
+  - owner_reference
+  row_filter: null
+  decision: exclude
+  reason: Cook County terms grant no reuse right. owner_reference holds homeowners' names across ~1.4M parcels, residential
+    included.
+  compliance_registry_id: null
+- table: warn_events
+  class: public-raw
+  target_db: ingest
+  source_module: sources/warn_act.py (enrich.ingest_warn_notices)
+  publisher: Illinois Dept. of Commerce and Economic Opportunity (Illinois workNet WARN reports)
+  license: No license or terms of use found; state works are not covered by 17 U.S.C. 105
+  license_url: https://www.illinoisworknet.com/warndashboard
+  license_status: unverified
+  drop_columns:
+  - property_owner_reference
+  - verified_address
+  - verified_pin
+  - address_verified_at
+  - raw_record
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Entity-level statutory notices. Owner accepted publishing (owner_decision). In the Azure build the table is ingested
+    fresh from DCEO, so it holds only public rows; the drops still apply because those columns came from Cook County.
+  owner_decision: 'Accepted 2026-10-08 by the owner: WARN notices are statutory public filings that DCEO has published since
+    1999; licence still unverified, so the basis is the owner''s judgement, not a licence.'
+  compliance_registry_id: null
+- table: sec_filings
+  class: public-raw
+  target_db: ingest
+  source_module: sources/sec_filings.py (+ backfill_sec_8k_item205)
+  publisher: U.S. Securities and Exchange Commission (EDGAR)
+  license: No explicit license; EDGAR access policy says anyone may access and download; only facts/metadata copied
+  license_url: https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data
+  license_status: unverified
+  drop_columns:
+  - excerpt
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: 'Filing metadata is a public record. Drop excerpt: it is company-authored prose, not a government work.'
+  compliance_registry_id: null
+- table: sec_form_d_filings
+  class: public-raw
+  target_db: ingest
+  source_module: sources/sec_form_d.py
+  publisher: U.S. Securities and Exchange Commission (EDGAR)
+  license: No explicit license; EDGAR access policy says anyone may access and download; only facts/metadata copied
+  license_url: https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Filing metadata only (type, date, accession, URL).
+  compliance_registry_id: null
+- table: company_financials
+  class: public-raw
+  target_db: ingest
+  source_module: sources/sec_financials.py
+  publisher: U.S. Securities and Exchange Commission (EDGAR)
+  license: No explicit license; EDGAR access policy says anyone may access and download; only facts/metadata copied
+  license_url: https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: XBRL numeric facts from data.sec.gov.
+  compliance_registry_id: null
+- table: company_related_entities
+  class: public-raw
+  target_db: ingest
+  source_module: sources/sec_edgar.py
+  publisher: U.S. Securities and Exchange Commission (EDGAR)
+  license: No explicit license; EDGAR access policy says anyone may access and download; only facts/metadata copied
+  license_url: https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: EDGAR name search can return individual filers (insiders have CIKs), so keep entities only.
+  compliance_registry_id: null
+- table: usaspending_awards
+  class: public-raw
+  target_db: ingest
+  source_module: sources/usaspending.py
+  publisher: U.S. Treasury Bureau of the Fiscal Service (USAspending.gov)
+  license: No license page found; US federal agency data (17 U.S.C. 105 basis)
+  license_url: https://www.law.cornell.edu/uscode/text/17/105
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Federal award facts for entity recipients.
+  compliance_registry_id: null
+- table: fdic_institutions
+  class: public-raw
+  target_db: ingest
+  source_module: sources/fdic_bankfind.py
+  publisher: Federal Deposit Insurance Corporation (BankFind API)
+  license: No public-domain statement found on FDIC website-policies page; US federal agency (17 U.S.C. 105 basis)
+  license_url: https://www.fdic.gov/about/website-policies
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Bank charter facts, entity-only.
+  compliance_registry_id: null
+- table: cms_care_compare_hospitals
+  class: public-raw
+  target_db: ingest
+  source_module: sources/cms_care_compare.py
+  publisher: Centers for Medicare & Medicaid Services (Provider Data Catalog)
+  license: No license page fetched (404); US federal agency (17 U.S.C. 105 basis)
+  license_url: https://www.law.cornell.edu/uscode/text/17/105
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Hospital facility facts, entity-only.
+  compliance_registry_id: null
+- table: fmcsa_safer_carriers
+  class: public-raw
+  target_db: ingest
+  source_module: sources/fmcsa_safer.py
+  publisher: U.S. DOT - FMCSA (SAFER)
+  license: No license page fetched; US federal agency (17 U.S.C. 105 basis)
+  license_url: https://www.law.cornell.edu/uscode/text/17/105
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: USDOT number + carrier name for an already-entity company.
+  compliance_registry_id: null
+- table: msha_mines
+  class: public-raw
+  target_db: ingest
+  source_module: sources/msha_mines.py
+  publisher: U.S. Department of Labor - MSHA
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Mine operator/controller facts; matched_name equals a public company.
+  compliance_registry_id: null
+- table: msha_violations_matches
+  class: derived
+  target_db: analytics
+  source_module: enrich.backfill_msha_violations_matches
+  publisher: U.S. Department of Labor - MSHA
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns:
+  - latest_controller_name
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Derived from msha_violations_employers. Drop the controller name, which can be a person.
+  compliance_registry_id: null
+- table: dol_lca_matches
+  class: derived
+  target_db: analytics
+  source_module: enrich.backfill_dol_lca_matches
+  publisher: U.S. Department of Labor (ETA OFLC)
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Derived from dol_lca_employers.
+  compliance_registry_id: null
+- table: dol_perm_matches
+  class: derived
+  target_db: analytics
+  source_module: enrich.backfill_dol_perm_matches
+  publisher: U.S. Department of Labor (ETA OFLC)
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Derived from dol_perm_employers.
+  compliance_registry_id: null
+- table: sba_ppp_matches
+  class: derived
+  target_db: analytics
+  source_module: enrich.backfill_sba_ppp_matches
+  publisher: U.S. Small Business Administration
+  license: U.S. Government Works (dataset license field on data.sba.gov)
+  license_url: https://data.sba.gov/dataset/ppp-foia
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Derived from sba_ppp_employers, with the same sole-prop exclusion.
+  compliance_registry_id: null
+- table: osha_severe_injury_reports
+  class: public-raw
+  target_db: ingest
+  source_module: sources/osha_severe_injury.py
+  publisher: U.S. Department of Labor - OSHA
+  license: Public domain - US federal work (DOL copyright page)
+  license_url: https://www.dol.gov/general/aboutdol/copyright
+  license_status: verified
+  drop_columns:
+  - narrative
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-with-drops
+  reason: 'DOL public domain. Drop narrative: free text about an injured worker''s incident.'
+  compliance_registry_id: null
+- table: chicago_lobbyist_clients
+  class: public-raw
+  target_db: ingest
+  source_module: sources/chicago_lobbyist_clients.py
+  publisher: City of Chicago (data.cityofchicago.org)
+  license: City of Chicago Data Terms of Use (redistribution permitted; mandatory disclaimer on derivative apps; City may
+    require takedown)
+  license_url: https://www.chicago.gov/city/en/narr/foia/data_disclaimer.html
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: City terms (mandatory disclaimer). Rows are matched to entity companies.
+  compliance_registry_id: null
+- table: occ_enforcement_actions
+  class: public-raw
+  target_db: ingest
+  source_module: sources/occ_enforcement.py
+  publisher: Office of the Comptroller of the Currency (EASearch)
+  license: No license statement found on OCC website-policies page; US federal agency (17 U.S.C. 105 basis)
+  license_url: https://www.occ.gov/about/who-we-are/website-policies/index-website-policies.html
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Includes actions against institution-affiliated individuals at a bank, so keep institution-level action types only
+    (owner should review the type values).
+  compliance_registry_id: null
+- table: nlrb_cases
+  class: public-raw
+  target_db: ingest
+  source_module: sources/nlrb_case_search.py
+  publisher: National Labor Relations Board (nlrb.gov case search CSV export)
+  license: No license page found (site-policies 404); US federal agency (17 U.S.C. 105 basis)
+  license_url: https://www.law.cornell.edu/uscode/text/17/105
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Case-level facts about employers/unions; no charging-party names are stored. Pulled via an undocumented CSV export.
+  compliance_registry_id: null
+- table: fed_enforcement_actions
+  class: public-raw
+  target_db: ingest
+  source_module: sources/fed_enforcement.py
+  publisher: Board of Governors of the Federal Reserve System
+  license: Public domain unless otherwise indicated (Board website disclaimer)
+  license_url: https://www.federalreserve.gov/disclaimer.htm
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Board says public domain. Press-release titles can name individuals (prohibition orders against former employees).
+  compliance_registry_id: null
+- table: doj_antitrust_cases
+  class: public-raw
+  target_db: ingest
+  source_module: sources/doj_antitrust_cases.py
+  publisher: U.S. Department of Justice - Antitrust Division
+  license: Public domain unless otherwise indicated (DOJ legal policies)
+  license_url: https://www.justice.gov/legalpolicies
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: DOJ says public domain. Case captions can name individual defendants, so keep single-party captions only.
+  compliance_registry_id: null
+- table: ftc_cases
+  class: public-raw
+  target_db: ingest
+  source_module: sources/ftc_cases.py
+  publisher: Federal Trade Commission (Legal Library)
+  license: No license page fetched (copyright page 404); US federal agency (17 U.S.C. 105 basis)
+  license_url: https://www.law.cornell.edu/uscode/text/17/105
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Case titles can name individual co-defendants, so keep single-party titles only.
+  compliance_registry_id: null
+- table: epa_echo_facilities
+  class: public-raw
+  target_db: ingest
+  source_module: sources/epa_echo.py
+  publisher: U.S. Environmental Protection Agency (ECHO)
+  license: 'EPA disclaimers: geospatial data public domain under 17 U.S.C. 105; documents non-commercial only; ECHO tabular
+    data not explicitly covered'
+  license_url: https://www.epa.gov/web-policies-and-procedures/epa-disclaimers
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Facility inspection/enforcement counts for entities. EPA's public-domain statement covers geospatial data, not this
+    tabular data.
+  compliance_registry_id: null
+- table: cfpb_complaints
+  class: public-raw
+  target_db: ingest
+  source_module: sources/cfpb_complaints.py
+  publisher: Consumer Financial Protection Bureau (Consumer Complaint Database API)
+  license: No reuse/license statement found; CFPB states personal info is not published; US federal agency (17 U.S.C. 105
+    basis)
+  license_url: https://www.consumerfinance.gov/complaint/data-use/
+  license_status: unverified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Stores only an aggregate count and company name, no narratives.
+  compliance_registry_id: null
+- table: business_license_company_links
+  class: derived
+  target_db: analytics
+  source_module: enrich.link_business_licenses_to_companies
+  publisher: City of Chicago (data.cityofchicago.org)
+  license: City of Chicago Data Terms of Use (redistribution permitted; mandatory disclaimer on derivative apps; City may
+    require takedown)
+  license_url: https://www.chicago.gov/city/en/narr/foia/data_disclaimer.html
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Link rows between published licences and public companies only.
+  compliance_registry_id: null
+- table: idfpr_license_company_links
+  class: derived
+  target_db: analytics
+  source_module: enrich.link_idfpr_licenses_to_companies
+  publisher: Illinois Dept. of Financial and Professional Regulation (via Illinois open data, illinois-edp.data.socrata.com)
+  license: ODbL 1.0 (dataset metadata licenseId=ODBL; attribution + share-alike on derived databases)
+  license_url: https://opendatacommons.org/licenses/odbl/1-0/
+  license_status: verified
+  drop_columns: []
+  row_filter: company is an Illinois WARN filer (exact normalized-name match)
+  decision: publish-filtered
+  reason: Link rows between published IDFPR licences and public companies (ODbL share-alike applies).
+  compliance_registry_id: null
+- table: court_records
+  class: public-raw
+  target_db: none
+  source_module: sources/court_records.py
+  publisher: Free Law Project (CourtListener / RECAP)
+  license: Filings generally public domain per CourtListener ToS; ToS requires honest attribution
+  license_url: https://www.courtlistener.com/terms/
+  license_status: verified
+  drop_columns:
+  - case_name
+  row_filter: null
+  decision: exclude
+  reason: Filings are public domain, but case_name names individual parties (e.g. 'Roberts v. Deloitte'), and docket number/URL
+    lead straight to them. Fails 'nothing personal'.
+  compliance_registry_id: null
+- table: finra_brokercheck_detail
+  class: public-raw
+  target_db: none
+  source_module: sources/finra_brokercheck.py
+  publisher: FINRA (BrokerCheck)
+  license: 'BrokerCheck Terms: use only for investor-protection, academic, compliance or regulatory purposes; redistribution
+    carries obligations'
+  license_url: https://www.finra.org/investors/learn-to-invest/choosing-investment-professional/about-brokercheck/permitted-uses
+  license_status: verified
+  drop_columns: []
+  row_filter: null
+  decision: exclude
+  reason: BrokerCheck permits use only for investor-protection, academic, compliance or regulatory purposes; an interview
+    demo is none of these.
+  compliance_registry_id: null
+- table: sec_form_adv
+  class: public-raw
+  target_db: none
+  source_module: sources/sec_form_adv.py
+  publisher: SEC Investment Adviser Public Disclosure (operated with FINRA; api.adviserinfo.sec.gov)
+  license: No terms of use retrievable; IAPD/CRD data is FINRA-operated
+  license_url: https://adviserinfo.sec.gov/
+  license_status: unverified
+  drop_columns: []
+  row_filter: null
+  decision: exclude
+  reason: IAPD terms could not be retrieved, and the data is FINRA-operated CRD data.
+  compliance_registry_id: null
+- table: nfa_basic_firms
+  class: public-raw
+  target_db: none
+  source_module: sources/nfa_basic.py
+  publisher: National Futures Association (BASIC)
+  license: BASIC Terms and Conditions contain no reuse grant; site footer 'All Rights Reserved'
+  license_url: https://www.nfa.futures.org/BasicNet/basic-terms.aspx
+  license_status: verified
+  drop_columns: []
+  row_filter: null
+  decision: exclude
+  reason: NFA BASIC terms grant no reuse right; the site is 'All Rights Reserved'.
+  compliance_registry_id: null
+- table: cook_county_recordings
+  class: public-raw
+  target_db: none
+  source_module: sources/cook_county_recorder.py
+  publisher: Cook County Clerk (Clerk's Recordings System, crs.cookcountyclerkil.gov)
+  license: No terms found; page footer claims copyright; scraped via session/anti-forgery form
+  license_url: https://crs.cookcountyclerkil.gov/
+  license_status: unverified
+  drop_columns:
+  - other_party
+  - address
+  row_filter: null
+  decision: exclude
+  reason: other_party/address name homeowners and mortgagors. No terms were found, and the data was scraped through an anti-forgery
+    form.
+  compliance_registry_id: null
+- table: il_debarred_contractors
+  class: public-raw
+  target_db: none
+  source_module: sources/il_debarred_contractors.py
+  publisher: Illinois Department of Labor (Public Works Debarred Contractors notice)
+  license: No license or terms of use found on page
+  license_url: https://labor.illinois.gov/laws-rules/conmed/debarred-contractors.html
+  license_status: unverified
+  drop_columns: []
+  row_filter: null
+  decision: exclude
+  reason: No license found. The debarment notice reaches 'directors, officers' (natural persons).
+  compliance_registry_id: null
+- table: layoff_tracker_reports
+  class: public-raw
+  target_db: none
+  source_module: sources/layoff_trackers.py (not implemented)
+  publisher: third-party layoff trackers (unchosen)
+  license: null
+  license_url: null
+  license_status: unverified
+  drop_columns: []
+  row_filter: null
+  decision: exclude
+  reason: Third-party aggregator (not primary). Module is unimplemented and the source list was never chosen.
+  compliance_registry_id: null
