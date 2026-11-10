@@ -418,7 +418,7 @@ bound to one Kubernetes service account and readable only from its own folder.</
 
 
 def view_sources():
-    rows = cached("catalog", lambda: q("SELECT source, publisher, url, licence, licence_url, licence_status, filters "
+    rows = cached("catalog_full", lambda: q("SELECT source, publisher, url, licence, licence_url, licence_status, filters "
                                        "FROM analytics.source_catalog ORDER BY source"))
     cls = {"verified": "ok", "owner_decision": "warn", "unverified": "bad"}
     tr = "".join(

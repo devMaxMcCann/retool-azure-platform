@@ -46,3 +46,12 @@ Copied verbatim from the registry release, then two `lifecycle` blocks added
 Upgrading the blueprint: diff the new release's azure-vnet against this copy,
 re-apply both patches, or drop the vendor copy if upstream fixed them.
 Upstream report: TODO (open an issue on tryretool/terraform-retool-self-hosted-blueprints).
+
+## azure-aks (tryretool/self-hosted-blueprints 0.5.2)
+
+Upstream always creates a `PerGB2018` Log Analytics workspace and enables the
+`oms_agent` (Container Insights) add-on, with no variable to opt out. In the
+first run of this demo that was about $100 of a $601 bill that no plan
+mentioned and nothing read. The patch sets the workspace `count = 0` and
+drops the `oms_agent` block. Cluster logs are still available via
+`kubectl logs`.

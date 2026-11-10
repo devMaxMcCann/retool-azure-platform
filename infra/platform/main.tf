@@ -62,8 +62,8 @@ module "vnet" {
 }
 
 module "aks" {
-  source  = "tryretool/self-hosted-blueprints/retool//modules/azure-aks"
-  version = "~> 0.5"
+  # Vendored 0.5.2 with Log Analytics / Container Insights removed; see ../vendor/PATCHES.md.
+  source = "../vendor/azure-aks"
 
   prefix              = var.prefix
   resource_group_name = azurerm_resource_group.main.name

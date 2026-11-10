@@ -19,7 +19,7 @@ import urllib.request
 
 REPO = "tryretool/terraform-retool-self-hosted-blueprints"
 COMMIT = "27e541f3faad993447362a1b9111816aa11a92b7"  # registry 0.5.2 -> x-terraform-get ref
-MODULES = ["azure-vnet", "azure-user-ingress"]
+MODULES = ["azure-vnet", "azure-user-ingress", "azure-aks"]
 HERE = pathlib.Path(__file__).resolve().parent
 TAG = "PATCH (retool-azure-platform)"
 
@@ -88,6 +88,17 @@ def patch(root: pathlib.Path):
         # Retool namespaces (prod + nonprod) instead of one gateway each.
         watchNamespace = join(",", concat([local.retool_namespace], var.extra_watch_namespaces))
 """)
+    p.write_text(t)
+
+    # 3) azure-aks: no Log Analytics workspace / Container Insights. Upstream
+    #    always creates both, with no variable to turn them off; in this demo
+    #    they billed ~$100 over three weeks and nothing read them.
+    p = root / "azure-aks" / "main.tf"
+    t = p.read_text()
+    t = replace_once(t, 'resource "azurerm_log_analytics_workspace" "aks" {\n  count = local.byo_cluster ? 0 : 1\n',
+                     f'resource "azurerm_log_analytics_workspace" "aks" {{\n  # {TAG}: never created (cost).\n  count = 0\n')
+    t = replace_once(t, "  oms_agent {\n    log_analytics_workspace_id = azurerm_log_analytics_workspace.aks[0].id\n  }\n",
+                     f"  # {TAG}: oms_agent (Container Insights) removed (cost).\n")
     p.write_text(t)
 
     p = root / "azure-user-ingress" / "variables.tf"
